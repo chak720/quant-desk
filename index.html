@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Quant Desk</title>
-<meta name="description" content="Free daily practice for quant trading interviews: mental maths, probability, expected value, sequences, statistics and market-making games.">
+<meta name="description" content="Learn quantitative trading and quant finance by doing: interactive labs, adaptive daily practice, market-making games and a public practice log.">
 <meta name="theme-color" content="#14212b">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2314212b'/%3E%3Cpath d='M8 21h7M17 11h7' stroke='%236b9cff' stroke-width='3' stroke-linecap='round'/%3E%3Cpath d='M12 9l8 14' stroke='%23fff' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,7 +16,7 @@
 <div class="wrap">
   <header>
     <div style="display:flex;flex-direction:column;gap:6px">
-      <span class="tag">Quant interview practice</span>
+      <span class="tag">Quant finance practice</span>
       <h1>Quant<span>/</span>Desk</h1>
     </div>
     <div class="strip tabular">
@@ -28,21 +28,26 @@
   <nav aria-label="Sections">
     <span id="navind" aria-hidden="true"></span>
     <button data-v="learn" aria-selected="false">Learn</button>
+    <button data-v="labs" aria-selected="false">Labs</button>
     <button data-v="daily" aria-selected="true">Daily</button>
     <button data-v="games" aria-selected="false">Games</button>
     <button data-v="profile" aria-selected="false">Profile</button>
+    <button data-v="log" aria-selected="false">Log</button>
   </nav>
   <main>
     <section class="panel" id="v-learn" hidden></section>
+    <section class="panel" id="v-labs" hidden></section>
     <section class="panel" id="v-daily"><div class="card"><p class="muted">Loading…</p></div></section>
     <section class="panel" id="v-games" hidden></section>
     <section class="panel" id="v-profile" hidden><div id="tab-progress" class="panel"></div></section>
+    <section class="panel" id="v-log" hidden></section>
   </main>
-  <p class="foot">Built by Chakshu Chopra · Questions adapt to what you get wrong · Progress stays in your browser</p>
+  <p class="foot">Built by Chakshu Chopra · Questions adapt to what you get wrong · <a href="#log">Practice log</a></p>
 </div>
 <noscript><p style="text-align:center">Quant Desk needs JavaScript to run.</p></noscript>
 <script src="assets/lessons.js"></script>
 <script src="assets/engine.js"></script>
+<script src="assets/labs.js"></script>
 <script src="assets/app.js"></script>
 </body>
 </html>

@@ -147,6 +147,40 @@ const SKILLS={
     const a=ri(1,4),m=ri(2,3),c=ri(1,4);const s=[a];for(let i=0;i<5;i++)s.push(s[s.length-1]*m+c);const ans=s.pop();
     return{q:`Next term: ${s.join(", ")}, ?`,ans,sol:`Each term ×${m} then +${c}`}}},
  }},
+ fin:{name:"Quant finance",subs:{
+  returns:{label:"Returns",min:1,gen(L){
+    const t=ri(0,L>=3?2:1);
+    if(t===0){const a=ri(20,200),b=Math.round(a*(1+ri(-30,40)/100));const ans=r4((b-a)/a*100);
+      return{q:`A stock goes from £${a} to £${b}. Simple return in %?`,ans,pct:true,tol:{abs:0.1},sol:`(${b} − ${a}) / ${a} = ${ans}%`}}
+    if(t===1){const x=pick([10,20,25,50]);const ans=r4(((1+x/100)*(1-x/100)-1)*100);
+      return{q:`A stock rises ${x}% one day and falls ${x}% the next. Total return in %?`,ans,pct:true,tol:{abs:0.05},sol:`(1 + ${x/100})(1 − ${x/100}) − 1 = −${(x/100)**2} → ${ans}%. Losses hurt more than equal gains help.`}}
+    const a=ri(50,150),b=Math.round(a*(1+ri(5,60)/100));const ans=r4(Math.log(b/a));
+    return{q:`Price goes from ${a} to ${b}. Log return ln(P₁/P₀), as a decimal?`,ans,tol:{abs:0.005},sol:`ln(${b}/${a}) = ${ans}. Log returns add across periods; simple returns don't.`}}},
+  compound:{label:"Compounding",min:1,gen(L){
+    if(Math.random()<.5){const r=pick([2,3,4,6,8,9,12]);const ans=r4(Math.log(2)/Math.log(1+r/100));
+      return{q:`At ${r}% a year compounded, roughly how many years to double your money?`,ans,tol:{abs:0.6},sol:`Rule of 72: 72 / ${r} ≈ ${r4(72/r)}. Exact: ln 2 / ln(1.${String(r).padStart(2,"0")}) = ${ans}`}}
+    const P=pick([100,1000,500]),r=pick([5,10,20]),n=ri(2,L+2);const ans=r4(P*(1+r/100)**n);
+    return{q:`£${P} grows at ${r}% a year for ${n} years, compounded. Final value (£)?`,ans,tol:{abs:0.5,rel:0.002},sol:`${P} × ${1+r/100}^${n} = ${ans}`}}},
+  risk:{label:"Volatility & Sharpe",min:2,gen(L){
+    if(Math.random()<.5){const d=pick([0.5,1,1.5,2]);const ans=r4(d*Math.sqrt(252));
+      return{q:`Daily volatility is ${d}%. Annualised volatility in % (252 trading days)?`,ans,pct:true,tol:{abs:0.3},sol:`σ scales with √time: ${d}% × √252 ≈ ${d} × 15.87 = ${ans}%`}}
+    const m=ri(4,20),rf=ri(0,5),v=ri(5,25);const ans=r4((m-rf)/v);
+    return{q:`A strategy returns ${m}% a year with ${v}% volatility. The risk-free rate is ${rf}%. Sharpe ratio?`,ans,tol:{abs:0.02},sol:`(return − risk-free) / volatility = (${m} − ${rf}) / ${v} = ${ans}`}}},
+  options:{label:"Option payoffs",min:2,gen(L){
+    const K=ri(8,12)*10,S=K+ri(-25,25);const t=ri(0,L>=3?3:1);
+    if(t===0)return{q:`A call with strike ${K} expires with the stock at ${S}. Payoff?`,ans:Math.max(S-K,0),sol:`max(S − K, 0) = max(${S} − ${K}, 0) = ${Math.max(S-K,0)}`};
+    if(t===1)return{q:`A put with strike ${K} expires with the stock at ${S}. Payoff?`,ans:Math.max(K-S,0),sol:`max(K − S, 0) = max(${K} − ${S}, 0) = ${Math.max(K-S,0)}`};
+    if(t===2){const C=ri(3,15),P=ri(3,15),S0=K+C-P;return{q:`Zero interest rates. A ${K}-strike call costs ${C} and the ${K}-strike put costs ${P}. What must the stock price be (put–call parity)?`,ans:S0,sol:`C − P = S − K → S = K + C − P = ${K} + ${C} − ${P} = ${S0}`}}
+    const prem=ri(4,14);return{q:`You buy a ${K}-strike straddle (call + put) for ${prem} total. What's the upper breakeven stock price at expiry?`,ans:K+prem,sol:`You need |S − K| > ${prem}: upper breakeven ${K} + ${prem} = ${K+prem}`}}},
+  kelly:{label:"Kelly sizing",min:3,gen(L){
+    const p=pick([0.52,0.55,0.6,0.65,0.7]),b=pick(L>=4?[1,2,3]:[1]);const ans=r4(p-(1-p)/b);
+    return{q:`A bet wins with probability ${p} and pays ${b}:1. Kelly fraction of your bankroll to bet (decimal)?`,ans,tol:{abs:0.005},sol:`f* = p − q/b = ${p} − ${r4(1-p)}/${b} = ${ans}`}}},
+  portfolio:{label:"Diversification",min:3,gen(L){
+    if(Math.random()<.5){const s=pick([10,20,30]),rho=pick([-0.5,0,0.5]);const ans=r4(s*Math.sqrt((1+rho)/2));
+      return{q:`Two assets each have ${s}% volatility and correlation ${rho}. Volatility of a 50/50 portfolio in %?`,ans,pct:true,tol:{abs:0.1},sol:`σ² = ¼σ² + ¼σ² + 2·¼·ρσ² = σ²(1+ρ)/2 → σ = ${s}·√(${(1+rho)/2}) = ${ans}%`}}
+    const s=pick([20,30,40]),n=pick([4,9,16,25]);const ans=r4(s/Math.sqrt(n));
+    return{q:`${n} uncorrelated assets, each ${s}% volatility, equally weighted. Portfolio volatility in %?`,ans,pct:true,tol:{abs:0.1},sol:`σ/√n = ${s}/√${n} = ${ans}%`}}},
+ }},
  stats:{name:"Statistics",subs:{
   binom:{label:"Binomial mean / variance",min:1,gen(L){
     const n=ri(10,100),p=pick([0.1,0.2,0.25,0.4,0.5,0.6]);const v=Math.random()<.5;
@@ -178,12 +212,12 @@ const FERMI=[
  ["Marathon distance (km)",42.195],["17 × 23 × 31",12121],["7^7",823543],["Year Imperial College was founded",1907],
  ["Light travel time from Sun to Earth (s)",499],["Days in 10 years incl. leap days (typical decade)",3652],["Number of ways to choose 6 from 49",13983816],
 ];
-const SKILL_ORDER=["arith","prob","ev","seq","stats","mm"];
+const SKILL_ORDER=["arith","prob","ev","seq","stats","fin","mm"];
 const SKILL_NAME={...Object.fromEntries(Object.entries(SKILLS).map(([k,v])=>[k,v.name])),mm:"Market making"};
 const LVL_NAME=["","Warm-up","Foundation","Interview","Hard","Desk-ready"];
 
 /* ---------- state ---------- */
-function blankState(){return{v:1,ratings:Object.fromEntries(SKILL_ORDER.map(k=>[k,950])),subs:{},mistakes:[],days:{},games:{sprint:{best:0,hist:[]},mm:{best:0,hist:[]},ladder:{best:0,hist:[]}},updated:null}}
+function blankState(){return{v:1,ratings:Object.fromEntries(SKILL_ORDER.map(k=>[k,950])),subs:{},mistakes:[],days:{},games:{sprint:{best:0,hist:[]},mm:{best:0,hist:[]},ladder:{best:0,hist:[]},kelly:{best:0,hist:[]},book:{best:0,hist:[]}},labs:{},updated:null}}
 let S=blankState();
 let DAY={date:todayKey(),attempts:[]};
 let db=null,storeMode="none",PLAN=null,READY=false;
@@ -228,7 +262,7 @@ function planQ(pq){
   const mm=!!pq.mm;const ans=Number(pq.ans);if(!isFinite(ans))return null;
   return{skill,sub:mm?"fermi":"coach",L:clamp(Number(pq.L)||2,1,5),q:String(pq.q).slice(0,500),ans,mm,custom:!mm,
     tol:pq.tol&&typeof pq.tol==="object"?{abs:Number(pq.tol.abs)||0,rel:Number(pq.tol.rel)||0}:{abs:1e-6,rel:1e-6},
-    sol:String(pq.sol||"").slice(0,800),unit:Number(pq.unit)||0,secs:Number(pq.secs)||0,src:typeof pq.src==="string"?pq.src.slice(0,300):"",label:String(pq.label||"Coach question").slice(0,40),fromPlan:true};
+    pct:!!pq.pct,sol:String(pq.sol||"").slice(0,800),unit:Number(pq.unit)||0,secs:Number(pq.secs)||0,src:typeof pq.src==="string"?pq.src.slice(0,300):"",label:String(pq.label||"Coach question").slice(0,40),fromPlan:true};
 }
 const TARGET=1250,DEFAULT_GAIN=7;
 function eta(skill){
@@ -254,7 +288,7 @@ function overallEta(){
   const measured=es.every(x=>x.e.measured);
   return{days:worst.e.days,text:isFinite(worst.e.days)?weeksText(worst.e.days):"Not yet measurable",bottleneck:SKILL_NAME[worst.k],measured};
 }
-const TARGETS={arith:[6,8,12,15,20],seq:[15,20,25,30,40],prob:[20,30,45,60,90],ev:[20,30,45,60,90],stats:[20,30,45,60,90],mm:[30,30,30,40,45]};
+const TARGETS={arith:[6,8,12,15,20],seq:[15,20,25,30,40],prob:[20,30,45,60,90],ev:[20,30,45,60,90],stats:[20,30,45,60,90],fin:[20,25,40,60,90],mm:[30,30,30,40,45]};
 function targetSecs(q){const n=Number(q.secs);if(n>0)return Math.round(n);return(TARGETS[q.skill]||TARGETS.prob)[clamp(q.L||2,1,5)-1]}
 function mmScore(bid,ask,v){
   if(!(bid>0&&ask>=bid))return 0;
@@ -268,7 +302,7 @@ function record(q,given,ok,ms,score){
   const exp=1/(1+10**((D-r)/400));
   const res=q.mm?score/100:(ok?(ms<=targetSecs(q)*1000?1:0.85):0);
   S.ratings[q.skill]=Math.round(r+28*(res-exp));
-  const day=S.days[todayKey()]||(S.days[todayKey()]={n:0,c:0,daily:false});day.n++;if(ok)day.c++;day.r={...S.ratings};
+  const day=dayRec();day.n++;if(ok)day.c++;day.r={...S.ratings};
   if(!ok&&!q.mm&&!q.review){S.mistakes.unshift({...(q.custom?{qobj:{skill:q.skill,sub:q.sub,L:q.L,q:q.q,ans:q.ans,tol:q.tol,sol:q.sol,label:q.label,custom:true}}:{}),id:Date.now().toString(36)+ri(0,999),skill:q.skill,sub:q.sub,L:q.L,q:q.q,ans:r4(q.ans),given:String(given).slice(0,40),sol:q.sol,t:todayKey(),fixes:0});S.mistakes=S.mistakes.slice(0,60)}
   if(q.review){const m=S.mistakes.find(m=>m.id===q.review);if(m){if(ok){m.fixes++;if(m.fixes>=2)S.mistakes=S.mistakes.filter(x=>x!==m)}else m.fixes=0}}
   if(q.mm&&score<40){S.mistakes=S.mistakes.filter(m=>m.skill!=="mm"||m.q!==q.q);S.mistakes.push({id:Date.now().toString(36),skill:"mm",sub:"fermi",L:3,q:q.q,ans:q.ans,given:String(given),sol:q.sol,t:todayKey(),fixes:0})}
@@ -284,7 +318,10 @@ function queueSave(){clearTimeout(saveTimer);saveTimer=setTimeout(lsSave,400)}
 function lsSave(){S.updated=new Date().toISOString();
   const ks=Object.keys(S.days).sort();if(ks.length>150)for(const k of ks.slice(0,ks.length-150))delete S.days[k];
   try{localStorage.setItem("qd_state",JSON.stringify(S));localStorage.setItem("qd_day",JSON.stringify(DAY))}catch(e){}}
-function mergeState(x){if(!x)return;const b=blankState();S={...b,...x,ratings:{...b.ratings,...(x.ratings||{})},games:{...b.games,...(x.games||{})}}}
+function mergeState(x){if(!x)return;const b=blankState();S={...b,...x,ratings:{...b.ratings,...(x.ratings||{})},games:{...b.games,...(x.games||{})},labs:{...(x.labs||{})}}}
+/* per-day activity counters beyond questions: labs opened/finished, games played */
+function dayRec(){return S.days[todayKey()]||(S.days[todayKey()]={n:0,c:0,daily:false})}
+function bumpDay(k){const d=dayRec();d[k]=(d[k]||0)+1;queueSave()}
 function unitDone(n){const u=(S.units||{})[n];const U=UNITS.find(x=>x.n===n);return!!u&&u.a>=Math.min(4,U.questions.length)&&u.c/u.a>=0.8}
 function nextUnit(){return UNITS.find(u=>!unitDone(u.n))||null}
 function unitPlan(U){return{id:"unit-"+U.n+"-"+todayKey(),unit:U.n,fromUnit:true,lesson:{title:`Unit ${U.n}: ${U.title}`,sections:U.sections,takeaways:U.takeaways},questions:U.questions.map(q=>({...q,unit:U.n}))}}

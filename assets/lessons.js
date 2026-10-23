@@ -95,7 +95,7 @@ const UNITS=[
  sections:[
   {h:"Quote a range you'd bet on",p:"For questions like \"how tall is the Shard\", your market is a confidence interval. Too wide and nobody trades; too tight and you get picked off. Aim for a range you'd honestly bet contains the truth about 80–90% of the time."},
   {h:"Anchor, then build",p:"Start from something you know (a storey is about 3–4 m; the Shard has around 95 storeys) and multiply. Breaking an estimate into parts beats guessing the whole thing."},
-  {h:"Think in ratios",p:"For big numbers, uncertainty is multiplicative: \"between 200 and 400\" is a factor of 2. Edge Desk scores width as ask ÷ bid for that reason. Calculable questions deserve near-zero width."}],
+  {h:"Think in ratios",p:"For big numbers, uncertainty is multiplicative: \"between 200 and 400\" is a factor of 2. Quant Desk scores width as ask ÷ bid for that reason. Calculable questions deserve near-zero width."}],
  takeaways:["Your market is a confidence interval.","Anchor on known facts and multiply.","Judge width as a ratio, not a difference."],
  questions:[
   {skill:"mm",mm:true,label:"Make a market",q:"Height of the Shard (m)",ans:310,sol:"310 m"},
