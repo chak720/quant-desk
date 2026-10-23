@@ -37,7 +37,7 @@ Plain HTML, CSS and JavaScript with no build step, so any static host works.
 
 - `assets/engine.js`: question generators, ratings and adaptive selection
 - `assets/lessons.js`: market-making curriculum units
-- `assets/labs.js`: interactive labs, chart drawing, Kelly and order-flow games, public log
+- `assets/labs.js`: concept labs, chart drawing, Kelly game, progress charts, public log
 - `assets/sims.js`: options visualiser and probability simulators
 - `assets/desk.js`: market-making simulator
 - `assets/backtest.js`: backtesting engine and playground
