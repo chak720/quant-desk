@@ -28,6 +28,7 @@
   <nav aria-label="Sections">
     <span id="navind" aria-hidden="true"></span>
     <button data-v="daily" aria-selected="true">Daily</button>
+    <button data-v="interview" aria-selected="false">Interview</button>
     <button data-v="learn" aria-selected="false">Learn</button>
     <button data-v="labs" aria-selected="false">Labs</button>
     <button data-v="desk" aria-selected="false">Desk</button>
@@ -37,6 +38,7 @@
     <button data-v="log" aria-selected="false">Log</button>
   </nav>
   <main>
+    <section class="panel" id="v-interview" hidden></section>
     <section class="panel" id="v-learn" hidden></section>
     <section class="panel" id="v-labs" hidden></section>
     <section class="panel" id="v-desk" hidden></section>
@@ -46,15 +48,17 @@
     <section class="panel" id="v-profile" hidden><div id="tab-progress" class="panel"></div></section>
     <section class="panel" id="v-log" hidden></section>
   </main>
-  <p class="foot">Built by Chakshu Chopra · Questions adapt to what you get wrong · <a href="#log">Practice log</a></p>
+  <div class="foot"><button class="btn ghost chip" type="button" data-feedback>Give feedback on this page</button><p>Built by Chakshu Chopra · Questions adapt to what you get wrong · <a href="#log">Practice log</a></p></div>
 </div>
 <noscript><p style="text-align:center">Quant Desk needs JavaScript to run.</p></noscript>
 <script src="assets/lessons.js"></script>
 <script src="assets/engine.js"></script>
+<script src="assets/feedback.js"></script>
 <script src="assets/labs.js"></script>
 <script src="assets/sims.js"></script>
 <script src="assets/desk.js"></script>
 <script src="assets/backtest.js"></script>
+<script src="assets/interview.js"></script>
 <script src="assets/app.js"></script>
 </body>
 </html>

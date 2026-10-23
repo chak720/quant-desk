@@ -122,7 +122,7 @@ function playDesk(host,sk,dk){
       <p class="small">Noise traders pay you the spread; informed traders take it back. The split above is the adverse-selection lesson in numbers.</p>
       <ul class="tips">${tips.map(t=>`<li>${esc(t)}</li>`).join("")}</ul>
       <details><summary>Full trade blotter with counterparties revealed</summary><table class="kv blot"><thead><tr><th>Round</th><th>Trade</th><th>Price</th><th>Lots</th><th>Who</th><th>Your edge</th></tr></thead><tbody>${fills.map(f=>`<tr><td>${f.k}</td><td>${f.side==="buy"?"you sold":"you bought"}</td><td>${f2(f.price)}</td><td>${f.size}</td><td>${f.informed?"informed":"noise"}</td><td>${f2((f.side==="buy"?f.price-V:V-f.price)*f.size)}</td></tr>`).join("")||`<tr><td colspan="6">No trades</td></tr>`}</tbody></table></details>
-      <div class="row"><button class="btn accent" id="dkagain">Play again</button></div></div>`);
+      <div class="row"><button class="btn accent" id="dkagain">Play again</button>${reportLink("Market-making simulator: "+sc.name)}</div></div>`);
     host.querySelectorAll("#dkq,[data-sh],[data-w],#dkctr,#dkb,#dka").forEach(e=>e.disabled=true);
     host.querySelector("#dkagain").onclick=()=>playDesk(host,sk,dk);
     const kb=document.querySelector("#v-desk .kbd");if(kb)kb.textContent=`Best P&L ${f2(g.best)} · ${g.hist.length} sessions`;

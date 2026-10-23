@@ -317,16 +317,16 @@ function buildLab(lab,body){
   lab.render(body.querySelector(".demo"));
   body.querySelector("[data-check]").onclick=()=>{const uh=body.querySelector(".uhost");let right=0;
     const qs=lab.quiz.map(q=>planQ({skill:"fin",label:lab.title.split(/[,:]/)[0],L:3,secs:60,...q})).filter(Boolean);
-    runner(uh,{questions:qs,title:"Lab check",onAnswer:(q,ok)=>{if(ok)right++},onDone:()=>{
+    runner(uh,{questions:qs,title:"Lab check",onAnswer:(q,ok)=>{if(ok)right++},onDone:items=>{
       const pass=right>=2;const rec=S.labs[lab.id]||(S.labs[lab.id]={done:false,best:0});rec.best=Math.max(rec.best,right);if(pass&&!rec.done){rec.done=true;rec.t=todayKey()}queueSave();
-      uh.innerHTML=`<div class="card stack qin"><h3>Lab check</h3><div class="big tabular">${right}/3</div><p class="muted">${pass?"Lab complete. It now counts on your public log.":"Two out of three completes the lab. Play with the demo again, then retry."}</p><div class="row"><button class="btn" id="lb">Back to labs</button></div></div>`;
+      uh.innerHTML=`<div class="card stack qin"><h3>Lab check</h3><div class="big tabular">${right}/3</div><p class="muted">${pass?"Lab complete. It now counts on your public log.":"Two out of three completes the lab. Play with the demo again, then retry."}</p>${reviewHTML(items,{title:"Your feedback",drill:false})}<div class="row"><button class="btn" id="lb">Back to labs</button></div></div>`;
       uh.querySelector("#lb").onclick=()=>{renderLabs();$("#v-labs").scrollIntoView({block:"start"})};}});
     uh.scrollIntoView({behavior:reduced()?"auto":"smooth",block:"start"});};
 }
 
 /* ---------- games: Kelly betting and order-flow market making ---------- */
 function playKelly(host){
-  const p=pick([0.55,0.58,0.6,0.62,0.65]),R=40,ks=2*p-1;let w=100,kw=100,i=0;const hist=[[0,100]],khist=[[0,100]];
+  const p=pick([0.55,0.58,0.6,0.62,0.65]),R=40,ks=2*p-1;let w=100,kw=100,i=0;const bets=[];const hist=[[0,100]],khist=[[0,100]];
   host.innerHTML=`<div class="card ticket"><div class="meta"><span>Kelly casino · coin lands heads ${pctf(p,0)} · even money</span><span id="kr">Round 1 / ${R}</span></div>
     <p class="muted small">Choose how much of your bankroll to bet on heads each round. A bot betting exactly Kelly (${pctf(ks,0)}) plays the same flips. Beat it.</p>
     <div class="stats">${stat("Your bankroll","£100","kw")}${stat("Kelly bot","£100","kk")}${stat("Last flip","–","kl")}</div>
@@ -336,8 +336,13 @@ function playKelly(host){
   host.querySelector("#kb").oninput=e=>{host.querySelector("#kbv").textContent=pctf(Number(e.target.value),0)};
   const drawC=()=>{const all=[...hist,...khist].map(x=>x[1]);chart(cv,{h:180,xr:[0,R],yr:[Math.max(0.5,Math.min(...all)*0.8),Math.max(...all)*1.2],logy:true,xlabel:"round",yfmt:v=>"£"+fmtTick(Math.round(v)),
     series:[{pts:khist,cls:"s3",label:"Kelly bot",dash:[5,4]},{pts:hist,cls:"s1",label:"You"}],snap:x=>clamp(Math.round(x),0,i),tip:x=>`<b>Round ${x}</b><br>You £${f2(hist[x][1])}<br>Kelly £${f2(khist[x][1])}`})};
-  const finish=()=>{const score=Math.round(w);endGame(host,"kelly",score,`Final bankroll (£). Kelly bot finished on £${Math.round(kw)}.`)};
-  host.querySelector("#kgo").onclick=()=>{const f=Number(host.querySelector("#kb").value),win=Math.random()<p;
+  const finish=()=>{const score=Math.round(w),avg=bets.length?mean(bets):0,notes=[`Your average bet was ${pctf(avg,0)} of your bankroll; Kelly is ${pctf(ks,0)}.`];
+    if(avg>ks*1.6)notes.push("You over-bet. Above about twice Kelly your long-run growth turns negative, even with an edge. Luck can hide this in one game, never over many.");
+    else if(avg<ks*0.4)notes.push("You under-bet. Safe, but you left most of the growth on the table. Half Kelly is a common practical compromise.");
+    else notes.push("Sensible sizing, close to Kelly or a fraction of it.");
+    notes.push(w>kw?"You beat the Kelly bot on these flips. Over many games, betting Kelly maximises the typical outcome, so check your sizing rather than the result.":"The Kelly bot finished ahead on the same flips.");
+    endGame(host,"kelly",score,`Final bankroll (£). Kelly bot finished on £${Math.round(kw)}.`,notes)};
+  host.querySelector("#kgo").onclick=()=>{const f=Number(host.querySelector("#kb").value),win=Math.random()<p;bets.push(f);
     w=Math.max(0,w*(win?1+f:1-f));kw*=win?1+ks:1-ks;i++;hist.push([i,Math.max(w,0.01)]);khist.push([i,kw]);
     host.querySelector("#kw").textContent="£"+f2(w);host.querySelector("#kk").textContent="£"+f2(kw);host.querySelector("#kl").textContent=win?"Heads, you win":"Tails, you lose";
     host.querySelector("#kr").textContent=`Round ${Math.min(i+1,R)} / ${R}`;drawC();if(i>=R||w<0.01)finish()};
@@ -346,30 +351,31 @@ function playKelly(host){
 /* ---------- public practice log ---------- */
 const OWNER="Chakshu Chopra";
 function streaks(days){
-  const has=k=>days[k]&&(days[k].daily||days[k].n>0||days[k].labs>0||days[k].g>0||days[k].bt>0);let cur=0;const d=new Date();if(!has(d.toLocaleDateString("en-CA")))d.setDate(d.getDate()-1);
+  const has=k=>days[k]&&(days[k].daily||days[k].n>0||days[k].labs>0||days[k].g>0||days[k].bt>0||days[k].iv>0);let cur=0;const d=new Date();if(!has(d.toLocaleDateString("en-CA")))d.setDate(d.getDate()-1);
   while(has(d.toLocaleDateString("en-CA"))){cur++;d.setDate(d.getDate()-1)}
   let best=0,run=0,prev=null;for(const k of Object.keys(days).filter(has).sort()){run=prev&&(Date.parse(k)-Date.parse(prev))/864e5===1?run+1:1;best=Math.max(best,run);prev=k}
   return{cur,best};
 }
 function publicSnapshot(){
-  const days=Object.fromEntries(Object.entries(S.days).sort().slice(-400).map(([k,v])=>[k,{n:v.n||0,c:v.c||0,daily:!!v.daily,labs:v.labs||0,g:v.g||0,bt:v.bt||0,...(v.r?{r:v.r}:{})}]));
+  const days=Object.fromEntries(Object.entries(S.days).sort().slice(-400).map(([k,v])=>[k,{n:v.n||0,c:v.c||0,daily:!!v.daily,labs:v.labs||0,g:v.g||0,bt:v.bt||0,iv:v.iv||0,...(v.r?{r:v.r}:{})}]));
   const dk=(S.games.desk&&S.games.desk.hist)||[];
   return{quantDeskLog:1,owner:OWNER,updated:new Date().toISOString(),ratings:Object.fromEntries(SKILL_ORDER.map(k=>[k,S.ratings[k]])),lv:Object.fromEntries(SKILL_ORDER.map(k=>[k,lvOf(k)])),
     labs:LABS.map(l=>({id:l.id,title:l.title,done:labDone(l.id),t:S.labs[l.id]?.t||null})),units:{done:UNITS.filter(u=>unitDone(u.n)).length,total:UNITS.length},
     games:Object.fromEntries(Object.entries(S.games).map(([k,v])=>[k,v.best])),
     desk:{sessions:dk.length,best:dk.length?S.games.desk.best:null,avg10:dk.length?Math.round(mean(dk.slice(-10).map(h=>h.s))*100)/100:null,hard:dk.filter(h=>h.df==="hard").length},
-    sims:{done:SIMS.filter(s=>simDone(s.id)).length,total:SIMS.length},days};
+    sims:{done:SIMS.filter(s=>simDone(s.id)).length,total:SIMS.length},
+    iv:(()=>{const h=(S.iv&&S.iv.hist)||[],m=h.filter(x=>x.max>=50);return{sessions:h.length,mocks:m.length,best:m.length?Math.max(...m.map(x=>x.score)):null,avg:h.length?Math.round(mean(h.map(x=>x.score/x.max))*100):null,seen:S.iv?Object.keys(S.iv.seen).length:0,total:IVQ.length}})(),days};
 }
 function heatmap(days,weeks=26){
   const end=new Date();const start=new Date(end);start.setDate(start.getDate()-(weeks*7-1));
   start.setDate(start.getDate()-((start.getDay()+6)%7));const cells=[];const d=new Date(start);
-  while(d<=end){const k=d.toLocaleDateString("en-CA"),v=days[k]||{};const n=(v.n||0)+(v.labs||0)*3+(v.g||0)*3+(v.bt||0)*3;
+  while(d<=end){const k=d.toLocaleDateString("en-CA"),v=days[k]||{};const n=(v.n||0)+(v.labs||0)*3+(v.g||0)*3+(v.bt||0)*3+(v.iv||0)*5;
     cells.push(`<i class="${n>=25?"l3":n>=10?"l2":n>0?"l1":""} ${k===todayKey()?"today":""}" title="${k}: ${v.n||0} questions${v.labs?`, ${v.labs} labs`:""}${v.g?`, ${v.g} games`:""}${v.daily?", daily set done":""}"></i>`);d.setDate(d.getDate()+1)}
   return`<div class="cal" role="img" aria-label="Practice activity over the last ${weeks} weeks">${cells.join("")}</div><div class="calkey muted small"><span>Less</span><i></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><span>More</span></div>`;
 }
 function logHTML(snap,{published}){
   const days=snap.days||{},ks=Object.keys(days).sort();const {cur,best}=streaks(days);
-  const active=ks.filter(k=>days[k].n||days[k].daily||days[k].labs||days[k].g||days[k].bt);let n=0,c=0;for(const k of ks){n+=days[k].n;c+=days[k].c}
+  const active=ks.filter(k=>days[k].n||days[k].daily||days[k].labs||days[k].g||days[k].bt||days[k].iv);let n=0,c=0;for(const k of ks){n+=days[k].n;c+=days[k].c}
   const recent=active.slice(-10).reverse();const labsDone=(snap.labs||[]).filter(l=>l.done).length;
   return`<div class="card stack"><h3>${published?"Public practice log":"Preview of your log"}</h3><h2>${esc(snap.owner||OWNER)} · quant finance practice</h2>
     <p class="muted small">${published?`Last published ${new Date(snap.updated).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}.`:"This is what visitors will see after you publish."}</p>
@@ -377,8 +383,9 @@ function logHTML(snap,{published}){
     ${heatmap(days)}</div>
     <div class="card stack"><h3>Progress over time</h3><div id="logcharts"></div></div>
     <div class="grid tight">${Object.entries(snap.ratings||{}).map(([k,r])=>{const v=snap.lv&&snap.lv[k]?Number(snap.lv[k]):clamp(1+(r-800)/120,1,5.99),L=clamp(Math.floor(v),1,5);return`<div class="card skill"><div class="top"><h3>${esc(SKILL_NAME[k]||k)}</h3><span class="lvl">L${L} ${LVL_NAME[L]}</span></div><span class="r tabular">${r}</span><div class="bar" title="Progress to the next level"><i style="width:${clamp((L>=5?1:v-L)*100,3,100)}%"></i></div></div>`}).join("")}</div>
-    <div class="card stack"><h3>Recent sessions</h3><div class="list">${recent.length?recent.map(k=>{const v=days[k];return`<div><span>${new Date(k).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}</span><span class="muted tabular small">${[v.n?`${v.n} qs · ${Math.round(v.c/v.n*100)}%`:"",v.daily?"daily set":"",v.labs?`${v.labs} lab${v.labs>1?"s":""}`:"",v.g?`${v.g} game${v.g>1?"s":""}`:"",v.bt?"backtesting":""].filter(Boolean).join(" · ")}</span></div>`}).join(""):`<div><span class="muted">No sessions yet.</span></div>`}</div></div>
+    <div class="card stack"><h3>Recent sessions</h3><div class="list">${recent.length?recent.map(k=>{const v=days[k];return`<div><span>${new Date(k).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}</span><span class="muted tabular small">${[v.n?`${v.n} qs · ${Math.round(v.c/v.n*100)}%`:"",v.daily?"daily set":"",v.labs?`${v.labs} lab${v.labs>1?"s":""}`:"",v.g?`${v.g} game${v.g>1?"s":""}`:"",v.bt?"backtesting":"",v.iv?`${v.iv} interview${v.iv>1?"s":""}`:""].filter(Boolean).join(" · ")}</span></div>`}).join(""):`<div><span class="muted">No sessions yet.</span></div>`}</div></div>
     <div class="card stack"><h3>Labs and track</h3><div class="list">${(snap.labs||[]).map(l=>`<div><span>${esc(l.title)}</span><span class="pill ${l.done?"ok":"todo"}">${l.done?"done":"not yet"}</span></div>`).join("")}<div><span>Market-making track units</span><span class="tabular small">${snap.units?`${snap.units.done} / ${snap.units.total}`:"–"}</span></div>${snap.sims?`<div><span>Probability puzzles solved by simulation</span><span class="tabular small">${snap.sims.done} / ${snap.sims.total}</span></div>`:""}</div></div>
+    ${snap.iv&&snap.iv.sessions?`<div class="card stack"><h3>Interview practice</h3><div class="stats">${stat("Sessions",String(snap.iv.sessions))}${stat("Mock interviews",String(snap.iv.mocks))}${stat("Best mock",snap.iv.best!=null?snap.iv.best+" / 50":"–")}${stat("Average score",snap.iv.avg+"%")}${stat("Questions attempted",`${snap.iv.seen} / ${snap.iv.total}`)}</div></div>`:""}
     ${snap.desk&&snap.desk.sessions?`<div class="card stack"><h3>Market-making simulator</h3><div class="stats">${stat("Sessions traded",String(snap.desk.sessions))}${stat("Best P&L",f2(snap.desk.best))}${stat("Average P&L, last 10",f2(snap.desk.avg10))}${stat("Hard-mode sessions",String(snap.desk.hard))}</div></div>`:""}`;
 }
 let PUBLISHED=null;

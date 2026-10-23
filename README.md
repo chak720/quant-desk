@@ -4,6 +4,7 @@ Learn quantitative trading and quant finance by doing: interactive labs, adaptiv
 
 **Live site:** https://chak720.github.io/quant-desk/
 
+- **Interview**: 45 timed quant interview questions across probability, expected value, brainteasers, mental maths, statistics, options and market making. An interviewer nudges you halfway through, gives hints (which cost points), asks a follow-up when you're right, and explains what they were looking for. Mock interviews are five questions scored out of 50 with a feedback report.
 - **Learn**: an eight-unit market-making track, from bid/ask basics to adverse selection and sequential games.
 - **Labs**: seven live simulations with sliders, hover charts, a "Show the maths" panel and a three-question check:
   returns and volatility drag, random walks and the √t rule, Sharpe ratios and backtest luck, the Kelly criterion,
@@ -17,6 +18,11 @@ Learn quantitative trading and quant finance by doing: interactive labs, adaptiv
 - **Games**: arithmetic sprint, market-maker estimation, probability ladder and Kelly casino (beat a Kelly bot).
 - **Profile**: ratings across seven topics including quant finance, a 26-week activity calendar, weak spots, labs completed and your mistake queue.
 - **Log**: a public practice record anyone can see: streaks, activity calendar, ratings, labs and recent sessions.
+
+## Feedback
+
+- **On your performance:** every daily set, drill (press *End and review*), unit, lab check, options quiz, game, simulator run, backtest and interview ends with a review: accuracy, speed against target, weakest and slowest topics, your misses with worked solutions, and what to practise next.
+- **On the site:** *Report a problem* on every question and *Give feedback on this page* at the bottom of every tab. Save it as a private note (shown in Profile) or open it as a pre-filled GitHub issue.
 
 ## Difficulty
 
@@ -41,6 +47,8 @@ Plain HTML, CSS and JavaScript with no build step, so any static host works.
 - `assets/sims.js`: options visualiser and probability simulators
 - `assets/desk.js`: market-making simulator
 - `assets/backtest.js`: backtesting engine and playground
+- `assets/interview.js`: interview question bank and interview room
+- `assets/feedback.js`: performance reviews and the feedback dialog
 - `assets/app.js`: views and the other games
 - `data/`: bundled price history. S&P 500, Apple, Microsoft, IBM and Starbucks from plotly/datasets; Google from backtesting.py's test data; Brent oil, VIX, GBP/USD and the monthly S&P 500 since 1871 from the datasets organisation on GitHub (EIA, CBOE, Federal Reserve H.10 and Shiller data)
 - `daily.json` (optional): a daily lesson and question set, picked up automatically when present

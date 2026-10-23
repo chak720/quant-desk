@@ -45,7 +45,9 @@ keep halving the σ interval until the model price matches.`)}</pre></details>
       <li>Gamma peaks at the strike and grows as expiry nears. Drag days to expiry down to 5 and watch the spike.</li>
       <li>Build a straddle: delta is near zero at the strike but gamma and vega are large. You're long volatility, not direction.</li>
       <li>Short put vs covered call: compare the expiry payoffs. They're the same shape (put–call parity).</li>
-      <li>Set S = K, r = 0, 365 days, σ = 20%. The call is worth about 0.4 × S × σ√T = 8.</li></ul></div></div>`;
+      <li>Set S = K, r = 0, 365 days, σ = 20%. The call is worth about 0.4 × S × σ√T = 8.</li></ul></div>
+    <div class="stack"><h3>Intuition check</h3><p class="muted small">Five quick options questions an interviewer might ask, scored with feedback. Estimates within about 5–10% count.</p>
+      <div class="row"><button class="btn accent" id="voq">Test my options intuition</button>${reportLink("Options visualiser")}</div><div id="voqhost"></div></div></div>`;
   const vch=chartBox(host.querySelector("#vch"),"Position value against stock price"),vgk=chartBox(host.querySelector("#vgk"),"Greek against stock price");
   let ty="call";
   const ids=["vS","vK","vv","vt","vr"];const fm=[null,null,x=>pctf(x,0),null,x=>pctf(x,2)];
@@ -85,7 +87,28 @@ keep halving the σ interval until the model price matches.`)}</pre></details>
   host.querySelectorAll("[data-gk]").forEach(b=>b.onclick=()=>{greek=b.dataset.gk;host.querySelectorAll("[data-gk]").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));draw()});
   host.querySelectorAll("[data-ty]").forEach(b=>b.onclick=()=>{ty=b.dataset.ty;host.querySelectorAll("[data-ty]").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));draw()});
   host.querySelector("#vivp").addEventListener("input",draw);
+  host.querySelector("#voq").onclick=()=>{const h=host.querySelector("#voqhost");runner(h,{questions:optionQuiz(),title:"Options intuition",onDone:items=>{
+    const right=items.filter(x=>x.ok).length;h.innerHTML=`<div class="card stack qin"><h3>Options intuition</h3><div class="big tabular">${right}/${items.length}</div>${reviewHTML(items,{title:"Your feedback",drill:false})}<div class="row"><button class="btn accent" id="voq2">Try another five</button></div></div>`;
+    h.querySelector("#voq2").onclick=()=>host.querySelector("#voq").click()}});h.scrollIntoView({behavior:reduced()?"auto":"smooth",block:"start"})};
   legsUI();draw();
+}
+/* generated options questions: numbers change each time, answers come from Black–Scholes */
+function optionQuiz(){
+  const T=[
+    ()=>{const S=pick([50,80,100,150,200]),sg=pick([0.15,0.2,0.3,0.4]),m=pick([3,6,12]),t=m/12,a=bs("call",S,S,sg,t).price;
+      return{q:`Stock ${S}, at-the-money call, ${pctf(sg,0)} volatility, ${m} months, zero rates. Estimate the call price.`,ans:a,tol:{rel:0.08},sol:`Rule of thumb 0.4·S·σ·√T = 0.4 × ${S} × ${sg} × √${r4(t)} ≈ ${f2(0.4*S*sg*Math.sqrt(t))}. Black–Scholes: ${f2(a)}.`}},
+    ()=>{const S=100,K=pick([80,90,100,110,120]),sg=0.25,t=0.5,d=bs("call",S,K,sg,t).delta;
+      return{q:`Stock 100, call strike ${K}, 25% volatility, 6 months, zero rates. Roughly what's the call's delta? (decimal)`,ans:d,tol:{abs:0.06},sol:`N(d1) = ${d.toFixed(3)}. At the money it's a bit above 0.5; deep in the money it approaches 1, far out of the money 0.`}},
+    ()=>{const S=pick([95,100,105,110]),K=100,C=ri(6,14);
+      return{q:`Zero rates. Stock ${S}, the 100-strike call costs ${C}. What does the 100-strike put cost?`,ans:C-S+K,tol:{abs:0.01},sol:`Put–call parity: P = C − S + K = ${C} − ${S} + 100 = ${C-S+K}.`}},
+    ()=>{const S=pick([100,200]),sg=pick([0.2,0.3]),t=pick([0.25,1]),a=bs("call",S,S,sg,t).price+bs("put",S,S,sg,t).price;
+      return{q:`Estimate the price of an at-the-money straddle: stock ${S}, volatility ${pctf(sg,0)}, ${t===1?"1 year":"3 months"}, zero rates.`,ans:a,tol:{rel:0.08},sol:`Two ATM options: about 0.8·S·σ·√T = ${f2(0.8*S*sg*Math.sqrt(t))}. Black–Scholes: ${f2(a)}.`}},
+    ()=>{const S=pick([100,250]),t=pick([0.25,1]),v=bs("call",S,S,0.2,t).vega;
+      return{q:`Stock ${S}, at-the-money option, ${t===1?"1 year":"3 months"} to expiry. Roughly how much does its price change for a 1 point rise in volatility?`,ans:v,tol:{rel:0.1},sol:`ATM vega ≈ 0.4·S·√T / 100 = ${f2(0.4*S*Math.sqrt(t)/100)} per vol point. Black–Scholes: ${f2(v)}.`}},
+    ()=>{const S=100,k=pick([2,4,9]),a=bs("call",S,S,0.2,1).price/Math.sqrt(k);
+      return{q:`A 1-year at-the-money call is worth 7.97. Roughly what's the same option worth with 1/${k} of the time left?`,ans:a,tol:{rel:0.06},sol:`ATM value scales with √T: 7.97 / √${k} ≈ ${f2(a)}.`}},
+  ];
+  return [...T].sort(()=>Math.random()-.5).slice(0,5).map(f=>({skill:"fin",sub:"options",L:3,label:"Options intuition",custom:true,secs:45,...f()}));
 }
 
 /* ---------- probability simulators ----------
@@ -146,6 +169,12 @@ const SIMS=[
  solution:"The circle's area is πr² and the square's is (2r)² = 4r², so the fraction inside is π/4 ≈ 0.785. Multiply the simulated fraction by 4 to estimate π. The error shrinks like 1/√n: 100 times more points buys only one more correct digit. That's the fundamental cost of Monte Carlo, and the same reason option prices from simulation need many paths.",
  trial:()=>{const x=Math.random()*2-1,y=Math.random()*2-1;return x*x+y*y<=1?1:0},scatter:true},
 ];
+const SIM_TRAPS={monty:"The usual trap is 1/2: two doors left feels like a coin flip, but the host's choice isn't random.",
+ coupon:"Most people underestimate: the last few coupons take by far the longest.",ruin:"For a fair game the answer is simply start ÷ target. A small edge against you makes it fall fast.",
+ birthday:"Intuition compares everyone with yourself (23/365). The real count is pairs: 23 people make 253.",pattern:"HH and HT feel symmetric, but a failed HH attempt can send you back to the start.",
+ stick:"Many guess 1/2. Drawing the unit square and shading the bad regions gets it in seconds.",pi:"It's a ratio of areas: circle over square, πr² ÷ 4r²."};
+function simVerdict(sim,pred,tr){if(!isFinite(pred))return"";const e=Math.abs(pred-tr)/Math.max(1e-9,Math.abs(tr));
+  return e<=0.03?`<b>Spot on.</b> Your prediction was within 3% of the exact answer.`:e<=0.15?`<b>Close.</b> You were ${pctf(e,0)} off. ${esc(SIM_TRAPS[sim.id]||"")}`:`<b>Off by ${pctf(e,0)}.</b> ${esc(SIM_TRAPS[sim.id]||"")} Open the solution below.`}
 function simDone(id){return!!(S.sims&&S.sims[id]&&S.sims[id].done)}
 function renderProb(host){
   const n=SIMS.filter(s=>simDone(s.id)).length;
@@ -163,9 +192,9 @@ function buildSim(sim,body){
       ${sim.paramUI?`<div class="controls">${sim.paramUI()}</div>`:""}
       <div class="row"><label class="form" for="pred-${sim.id}" style="flex:1;min-width:160px">Your prediction${sim.paramUI?" (for the settings above)":""}<input type="text" id="pred-${sim.id}" inputmode="decimal" autocomplete="off" value="${rec.pred!=null?esc(rec.pred):""}" placeholder="e.g. 0.5 or 1/2"></label></div>
       <div class="row">${[100,1000,10000,100000].map(n=>`<button class="btn ${n===10000?"accent":"ghost"}" data-run="${n}">Run ${n.toLocaleString("en-GB")}</button>`).join("")}<button class="btn ghost" data-reset>Reset</button></div>
-      <div class="stats" id="ss-${sim.id}"></div><div class="sch"></div>${sim.hist||sim.paths||sim.scatter?`<div class="sch2"></div>`:""}
+      <div class="stats" id="ss-${sim.id}"></div><p class="small sv" id="sv-${sim.id}" role="status"></p><div class="sch"></div>${sim.hist||sim.paths||sim.scatter?`<div class="sch2"></div>`:""}
     </div>
-    <details class="maths"><summary>Show the solution</summary><p>${esc(sim.solution)}</p></details>`;
+    <details class="maths"><summary>Show the solution</summary><p>${esc(sim.solution)}</p></details><div class="row">${reportLink("Probability simulator: "+sim.title)}</div>`;
   if(sim.extra)sim.extra(body.querySelector(".mhost"));
   const cv=chartBox(body.querySelector(".sch"),"Running estimate"),cv2=body.querySelector(".sch2")?chartBox(body.querySelector(".sch2"),"Distribution"):null;
   let run=null,state;
@@ -175,6 +204,7 @@ function buildSim(sim,body){
     const p=P(),tr=sim.truth(p),pred=parseNum(body.querySelector(`#pred-${sim.id}`).value);
     const est=state.n?state.sum/state.n:NaN,se=state.n>1?Math.sqrt(Math.max(0,state.sum2/state.n-est*est)/state.n):NaN;
     body.querySelector(`#ss-${sim.id}`).innerHTML=stat("Trials",state.n.toLocaleString("en-GB"))+stat("Simulated",state.n?sim.fmtv(est)+(isFinite(se)?` ± ${sim.fmtv(2*se)}`:""):"–")+stat("Your prediction",isFinite(pred)?sim.fmtv(pred):"–")+stat("Exact answer",state.n>=1000||rec.done?sim.fmtv(tr):"run 1,000 to reveal")+(sim.trial2&&state.n?stat(sim.label2,sim.fmtv(state.sum2b/state.n)):"");
+    body.querySelector(`#sv-${sim.id}`).innerHTML=state.n>=1000&&!run?simVerdict(sim,pred,tr):"";
     const tr1=state.trace,lastN=tr1.length?tr1[tr1.length-1][0]:10;
     const ys=[tr,...tr1.map(p=>p[1]),...state.trace2.map(p=>p[1]),...(isFinite(pred)?[pred]:[])];
     const lo=Math.min(...ys),hi=Math.max(...ys),pad=(hi-lo)*0.1||Math.abs(tr)*0.1||0.1;

@@ -2,11 +2,14 @@
 /* Quant Desk UI */
 /* ---------- question runner ---------- */
 
-function runner(host,{questions,next,onDone,title,showProgress=true,onAnswer}){
-  let i=0,start=0,list=questions||[],tick=null;
+/* onDone(items) gets every answered question as {q,ok,ms,given} so callers can build a review.
+   endable: show an "End and review" button (for open-ended drills and games). */
+function runner(host,{questions,next,onDone,title,showProgress=true,onAnswer,endable=false}){
+  let i=0,start=0,list=questions||[],tick=null;const items=[];
+  const finish=()=>{clearInterval(tick);onDone&&onDone(items)};
   function current(){return list[i]||(next?(list[i]=next(i)):null)}
   function draw(){
-    const q=current();if(!q){onDone&&onDone();return}
+    const q=current();if(!q){finish();return}
     start=performance.now();clearInterval(tick);const tgt=targetSecs(q);
     const total=questions?questions.length:null;
     host.innerHTML=`<div class="card ticket qin">
@@ -17,7 +20,7 @@ function runner(host,{questions,next,onDone,title,showProgress=true,onAnswer}){
       ${q.mm?`<div class="mm"><label class="b" for="bid">Bid<input type="text" id="bid" inputmode="decimal" autocomplete="off"></label><label class="a" for="ask">Ask<input type="text" id="ask" inputmode="decimal" autocomplete="off"></label></div>
         <p class="muted" style="font-size:13px">Quote a range you think contains the true value. Tighter scores more, but a miss scores zero.</p>`
       :`<input type="text" id="ans" inputmode="decimal" autocomplete="off" placeholder="${q.pct?"Answer in %, e.g. 12.5":"Answer: 1/6, 0.167 or 16.7%"}">`}
-      <div class="row"><button class="btn" id="submit">Submit</button><button class="btn ghost" id="skip">I don't know</button><span class="kbd">Enter to submit</span></div>
+      <div class="row"><button class="btn" id="submit">Submit</button><button class="btn ghost" id="skip">I don't know</button><span class="kbd">Enter to submit</span>${endable&&items.length?`<button class="btn ghost chip endbtn" id="endrev">End and review</button>`:""}</div>
       <div id="fbhost"></div></div>`;
     const pb=host.querySelector(".progressbar i");if(pb)requestAnimationFrame(()=>requestAnimationFrame(()=>{pb.style.width=pb.dataset.w+"%"}));
     const clk=host.querySelector("#qclock");
@@ -26,6 +29,7 @@ function runner(host,{questions,next,onDone,title,showProgress=true,onAnswer}){
     host.querySelectorAll("input").forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();host.querySelector("#submit").click()}}));
     host.querySelector("#submit").addEventListener("click",()=>safe(false));
     host.querySelector("#skip").addEventListener("click",()=>safe(true));
+    const er=host.querySelector("#endrev");if(er)er.onclick=finish;
   }
   function safe(skipped){try{answer(skipped)}catch(e){flash("Something went wrong saving that answer: "+(e&&e.message||e)+". Press Next to carry on.");console.error(e)}}
   function answer(skipped){
@@ -38,7 +42,7 @@ function runner(host,{questions,next,onDone,title,showProgress=true,onAnswer}){
     }else{given=skipped?"skip":host.querySelector("#ans").value;const v=parseNum(given);
       if(!skipped&&isNaN(v)){flash("Enter a number, a fraction like 3/8, or a percentage.");return}
       ok=!skipped&&close(q.pct&&/%/.test(given)?v*100:v,q.ans,q.tol||{abs:1e-6,rel:1e-6});}
-    record(q,given,ok,ms,score);onAnswer&&onAnswer(q,ok,score);for(const ev of LEVEL_EVENTS.splice(0))if(ev.to>ev.from)toast(`Level up: ${SKILL_NAME[ev.skill]} is now L${ev.to} ${LVL_NAME[ev.to]}`);
+    record(q,given,ok,ms,score);items.push({q,ok,ms,given:skipped?"skip":given});onAnswer&&onAnswer(q,ok,score,ms,given);for(const ev of LEVEL_EVENTS.splice(0))if(ev.to>ev.from)toast(`Level up: ${SKILL_NAME[ev.skill]} is now L${ev.to} ${LVL_NAME[ev.to]}`);
     host.querySelectorAll("input,#submit,#skip").forEach(el=>el.disabled=true);
     const card=host.querySelector(".ticket");card.classList.remove("qin");card.classList.add(ok?"good":"shake");
     const fb=host.querySelector("#fbhost");
@@ -46,8 +50,8 @@ function runner(host,{questions,next,onDone,title,showProgress=true,onAnswer}){
       ${extra?`<span>${esc(extra)}</span>`:""}
       <span class="muted">Answer: <span class="tabular" style="font-family:var(--mono)">${esc(fmt(q.ans))}</span></span>
       <div class="sol">${esc(q.sol)}</div>${q.src?`<span class="muted" style="font-size:12.5px">Source: ${/^https?:\/\//.test(q.src)?`<a href="${esc(q.src)}" target="_blank" rel="noopener" style="color:var(--accent)">${esc(q.src.replace(/^https?:\/\/(www\.)?/,"").slice(0,60))}</a>`:esc(q.src)}</span>`:""}</div>
-      <div class="row" style="margin-top:10px"><button class="btn accent" id="nextbtn">Next</button>${!ok&&sampleFn?`<button class="btn ghost" id="explain">Explain this to me</button>`:""}</div><div id="exp" class="coachout" style="margin-top:10px"></div>`;
-    const nb=fb.querySelector("#nextbtn");nb.focus({preventScroll:true});nb.onclick=()=>{i++;draw()};
+      <div class="row" style="margin-top:10px"><button class="btn accent" id="nextbtn">Next</button>${endable?`<button class="btn ghost" id="endrev2">End and review</button>`:""}${reportLink(`${SKILL_NAME[q.skill]} question: ${q.q.slice(0,80)}`)}${!ok&&sampleFn?`<button class="btn ghost" id="explain">Explain this to me</button>`:""}</div><div id="exp" class="coachout" style="margin-top:10px"></div>`;
+    const nb=fb.querySelector("#nextbtn");nb.focus({preventScroll:true});nb.onclick=()=>{i++;draw()};const e2=fb.querySelector("#endrev2");if(e2)e2.onclick=finish;
     const ex=fb.querySelector("#explain");if(ex)ex.onclick=()=>explain(q,given,fb.querySelector("#exp"),ex);
   }
   function flash(t){const fb=host.querySelector("#fbhost");fb.innerHTML=`<p style="color:var(--ask);font-size:13px">${esc(t)}</p>`}
@@ -68,36 +72,46 @@ function renderGames(){
   host.innerHTML=`<div class="games">${GAMES.map(G=>`<div class="card game"><div><h3>${esc(G.name)}</h3><p class="muted" style="margin-top:6px">${esc(G.d)}</p></div><div class="row" style="justify-content:space-between"><span class="kbd">Best <b class="tabular" style="color:var(--ink)" data-best="${G.k}">${S.games[G.k].hist.length?esc(G.fmt(S.games[G.k].best)):"–"}</b></span><button class="btn" ${READY?"":"disabled"} data-game="${G.k}">Play</button></div></div>`).join("")}</div><div id="gamehost"></div>`;
   host.querySelectorAll("[data-game]").forEach(b=>b.onclick=()=>{const gh=host.querySelector("#gamehost");GAMES.find(G=>G.k===b.dataset.game).play(gh);gh.scrollIntoView({behavior:reduced()?"auto":"smooth",block:"start"})});
 }
-function endGame(host,key,score,label){
+function endGame(host,key,score,label,notes=[],items=null){
   const g=S.games[key];const first=!g.hist.length;const best=first||score>g.best;if(best)g.best=score;g.hist.push({d:todayKey(),s:score});g.hist=g.hist.slice(-40);bumpDay("g");
-  host.innerHTML=`<div class="card" style="display:flex;flex-direction:column;gap:10px"><h3>${esc(GAMES.find(G=>G.k===key).name)}</h3><div class="big tabular">${score}</div><p class="muted">${esc(label)}</p><p class="muted">${best?"New personal best.":`Best: ${g.best}`}</p><div class="row"><button class="btn" id="replay">Play again</button></div></div>`;
+  host.innerHTML=`<div class="card" style="display:flex;flex-direction:column;gap:10px"><h3>${esc(GAMES.find(G=>G.k===key).name)}</h3><div class="big tabular">${score}</div><p class="muted">${esc(label)}</p><p class="muted">${best?"New personal best.":`Best: ${g.best}`}${g.hist.length>=3?` · average of your last 5: ${r4(mean(g.hist.slice(-5).map(h=>h.s)))}`:""}</p>
+    ${notes.length?`<div class="stack"><h3>Feedback</h3><ul class="tips">${notes.map(n=>`<li>${esc(n)}</li>`).join("")}</ul></div>`:""}${items?reviewHTML(items,{title:"Question review"}):""}
+    <div class="row"><button class="btn" id="replay">Play again</button>${reportLink(GAMES.find(G=>G.k===key).name+" game")}</div></div>`;
   host.querySelector("#replay").onclick=()=>GAMES.find(G=>G.k===key).play(host);
   renderGamesBests();
 }
 function renderGamesBests(){for(const G of GAMES){const b=document.querySelector(`[data-best="${G.k}"]`);if(b&&S.games[G.k].hist.length)b.textContent=G.fmt(S.games[G.k].best)}}
 function playSprint(host){
-  const L=levelFor("arith");let score=0,t0=performance.now(),cur,timer;
+  const L=levelFor("arith");let score=0,t0=performance.now(),cur,timer,qStart=performance.now();const times={"+":[],"−":[],"×":[],"÷":[]};
   const gen=()=>{const op=pick(["+","−","×","÷"]);const hi=[12,25,50,99,150][L-1],mh=[12,12,20,30,50][L-1];
-    if(op==="+"){const a=ri(2,hi),b=ri(2,hi);return{q:`${a} + ${b}`,a:a+b}}
-    if(op==="−"){const a=ri(2,hi),b=ri(2,hi);return{q:`${a+b} − ${a}`,a:b}}
-    const a=ri(2,mh),b=ri(2,L>2?99:12);return op==="×"?{q:`${a} × ${b}`,a:a*b}:{q:`${a*b} ÷ ${a}`,a:b}};
+    if(op==="+"){const a=ri(2,hi),b=ri(2,hi);return{q:`${a} + ${b}`,a:a+b,op}}
+    if(op==="−"){const a=ri(2,hi),b=ri(2,hi);return{q:`${a+b} − ${a}`,a:b,op}}
+    const a=ri(2,mh),b=ri(2,L>2?99:12);return op==="×"?{q:`${a} × ${b}`,a:a*b,op}:{q:`${a*b} ÷ ${a}`,a:b,op}};
   host.innerHTML=`<div class="card ticket"><div class="meta"><span>Arithmetic sprint · L${L}</span><span id="clock">120s</span></div><div class="progressbar"><i id="pb" style="width:100%"></i></div><div class="q big" id="sq"></div><input type="text" id="sin" inputmode="numeric" autocomplete="off"><div class="meta"><span>Score <b id="ss" style="color:var(--ink)">0</b></span><button class="btn ghost" id="sstop" style="padding:6px 10px">End</button></div></div>`;
   const sq=host.querySelector("#sq"),inp=host.querySelector("#sin");
-  const nextQ=()=>{cur=gen();sq.textContent=cur.q;inp.value=""};nextQ();inp.focus({preventScroll:true});
-  inp.oninput=()=>{if(Number(inp.value.trim())===cur.a){score++;host.querySelector("#ss").textContent=score;nextQ()}};
+  const nextQ=()=>{cur=gen();sq.textContent=cur.q;inp.value="";qStart=performance.now()};nextQ();inp.focus({preventScroll:true});
+  inp.oninput=()=>{if(Number(inp.value.trim())===cur.a){times[cur.op].push(performance.now()-qStart);score++;host.querySelector("#ss").textContent=score;nextQ()}};
   const finish=()=>{clearInterval(timer);const day=S.days[todayKey()]||(S.days[todayKey()]={n:0,c:0,daily:false});
-    S.ratings.arith=Math.round(S.ratings.arith+clamp((score-(20+L*6))*1.2,-20,20));S.lv.arith=clamp(lvOf("arith")+clamp((score-(20+L*6))/40,-0.2,0.3),1,5.99);endGame(host,"sprint",score,"Sprint score")};
+    S.ratings.arith=Math.round(S.ratings.arith+clamp((score-(20+L*6))*1.2,-20,20));S.lv.arith=clamp(lvOf("arith")+clamp((score-(20+L*6))/40,-0.2,0.3),1,5.99);const el=Math.max(1,(performance.now()-t0)/1000),tgt=20+L*6,notes=[`${(score/el*60).toFixed(0)} answers a minute. At level ${L} the bar is about ${tgt} in two minutes.`];
+    const ops=Object.entries(times).filter(([o,t])=>t.length).map(([o,t])=>[o,mean(t)/1000]).sort((a,b)=>b[1]-a[1]);
+    if(ops.length>1)notes.push(`Slowest operation: ${ops[0][0]} at ${ops[0][1].toFixed(1)}s each, against ${ops[ops.length-1][1].toFixed(1)}s for ${ops[ops.length-1][0]}. Drill that one.`);
+    notes.push(score>=tgt?"Above the bar: your mental maths level goes up.":"Below the bar: keep at it daily. Speed comes from recognising patterns (×25, ×11, near-round numbers).");
+    endGame(host,"sprint",score,"Sprint score",notes)};
   timer=setInterval(()=>{const left=Math.max(0,120-(performance.now()-t0)/1000);host.querySelector("#clock").textContent=Math.ceil(left)+"s";host.querySelector("#pb").style.width=left/120*100+"%";if(left<=0)finish()},200);
   host.querySelector("#sstop").onclick=finish;
 }
 function playMM(host){
   const pool=[...FERMI].sort(()=>Math.random()-.5).slice(0,5).map(f=>({skill:"mm",sub:"fermi",L:3,q:f[0],ans:f[1],mm:true,sol:`True value: ${fmt(f[1])}`}));let total=0;
-  runner(host,{questions:pool,title:"Market maker",onAnswer:(q,ok,s)=>{total+=s},onDone:()=>endGame(host,"mm",total,"Market maker score")});
+  runner(host,{questions:pool,title:"Market maker",onAnswer:(q,ok,s)=>{total+=s},onDone:items=>{const miss=items.filter(x=>!x.ok).length,notes=[`Average ${Math.round(total/Math.max(1,items.length))} points a market.`];
+    if(miss>=2)notes.push(`${miss} of your markets missed the true value. Widen when you're unsure: a wide market that's right scores more than a tight one that's wrong.`);
+    else if(total/Math.max(1,items.length)<55)notes.push("You were right but wide. Anchor on a fact you know and tighten: score falls with the ratio ask ÷ bid.");
+    else notes.push("Good calibration. Try to tighten calculable questions to near-zero width.");
+    endGame(host,"mm",total,"Market maker score",notes)}});
 }
 function playLadder(host){
   let lvl=1,streak=0,lives=3,score=0;const ks=["prob","ev","stats"];
   runner(host,{title:"Probability ladder",showProgress:false,next:()=>lives>0?{...makeQ(pick(ks),null,lvl),noStair:true}:null,onAnswer:(q,ok)=>{
-    if(ok){score++;streak++;if(streak>=2){lvl=Math.min(5,lvl+1);streak=0}}else{lives--;streak=0}},onDone:()=>endGame(host,"ladder",score,"Ladder score")});
+    if(ok){score++;streak++;if(streak>=2){lvl=Math.min(5,lvl+1);streak=0}}else{lives--;streak=0}},onDone:items=>endGame(host,"ladder",score,"Ladder score",[`You reached level ${lvl} of 5.${lvl>=4?" That's interview standard.":" Every two in a row steps you up."}`],items)});
 }
 
 function renderProgress(){
@@ -127,7 +141,7 @@ function statsSummary(){
 
 /* ---------- views ---------- */
 let sampleFn=null;function explain(){}
-const VIEWS=["daily","learn","labs","desk","backtest","games","profile","log"];
+const VIEWS=["daily","interview","learn","labs","desk","backtest","games","profile","log"];
 function renderStrip(){
   const streak=streaks(S.days).cur;
   bump("#sStreak",streak);bump("#sToday",S.days[todayKey()]?.n||0);
@@ -146,7 +160,7 @@ function lessonHTML(L,open){
   return`<div class="lessonbody" ${open?"":"hidden"}>${secs}${tk?`<div class="lsec"><b>Remember</b><ul>${tk}</ul></div>`:""}</div>`;
 }
 function checklist(){
-  const d=S.days[todayKey()]||{};const items=[[!!d.daily,"Finish today's set"],[(d.labs||0)>0||(S.lessonsRead||[]).some(x=>String(x).endsWith(todayKey())),"Open a lab or read a lesson"],[(d.g||0)>0,"Play one game"]];
+  const d=S.days[todayKey()]||{};const items=[[!!d.daily,"Finish today's set"],[(d.labs||0)>0||(S.lessonsRead||[]).some(x=>String(x).endsWith(todayKey())),"Open a lab or read a lesson"],[(d.g||0)+(d.iv||0)>0,"Play a game or try an interview question"]];
   const n=items.filter(x=>x[0]).length;
   return`<div class="check"><span class="tag">Today's goal · ${n} / 3</span><ul>${items.map(([ok,t])=>`<li class="${ok?"ok":""}"><span class="tick" aria-hidden="true">${ok?"✓":""}</span>${esc(t)}<span class="sr">${ok?" (done)":" (to do)"}</span></li>`).join("")}</ul></div>`;
 }
@@ -173,15 +187,17 @@ function renderDaily(){
   const lt=host.querySelector("#ltoggle");if(lt)lt.onclick=()=>{const b=host.querySelector(".lessonbody");b.hidden=!b.hidden;lt.textContent=b.hidden?"Show lesson":"Hide lesson"};
   host.querySelector("#startDaily").onclick=()=>{
     const qs=buildDaily();let right=0;const rh=host.querySelector("#runhost");
-    runner(rh,{questions:qs,title:"Daily set",onAnswer:(q,ok)=>{if(ok)right++},onDone:()=>{
+    runner(rh,{questions:qs,title:"Daily set",onAnswer:(q,ok)=>{if(ok)right++},onDone:items=>{
       const day=S.days[todayKey()]||(S.days[todayKey()]={n:0,c:0});day.daily=true;if(PLAN)S.planDone=PLAN.id;lsSave();renderStrip();
-      rh.innerHTML=`<div class="card stack qin"><h3>Set complete</h3><div class="big tabular" data-count="${right}">0</div><p class="muted">out of ${qs.length}. Misses come back in tomorrow's review.</p><div class="row"><button class="btn accent" id="pubday">Publish today to my log</button><button class="btn" id="again">Back to Daily</button><button class="btn ghost" id="toprof">See progress</button></div></div>`;
+      rh.innerHTML=`<div class="card stack qin"><h3>Set complete</h3><div class="big tabular" data-count="${right}">0</div><p class="muted">out of ${qs.length}. Misses come back in tomorrow's review.</p>${reviewHTML(items,{title:"Your feedback"})}<div class="row"><button class="btn accent" id="pubday">Publish today to my log</button><button class="btn" id="again">Back to Daily</button><button class="btn ghost" id="toprof">See progress</button></div></div>`;
       countUp(rh.querySelector("[data-count]"),"/"+qs.length);
       rh.querySelector("#pubday").onclick=()=>publishFlow(rh.querySelector(".card"));
       rh.querySelector("#again").onclick=()=>{choosePlan();renderDaily()};rh.querySelector("#toprof").onclick=()=>go("profile");}});
     rh.scrollIntoView({behavior:reduced()?"auto":"smooth",block:"start"});
   };
-  host.querySelectorAll("[data-drill]").forEach(b=>b.onclick=()=>{const k=b.dataset.drill;const rh=host.querySelector("#runhost");runner(rh,{next:()=>makeQ(k),title:`${SKILL_NAME[k]} drill`});rh.scrollIntoView({behavior:reduced()?"auto":"smooth",block:"start"})});
+  host.querySelectorAll("[data-drill]").forEach(b=>b.onclick=()=>{const k=b.dataset.drill;const rh=host.querySelector("#runhost");const drill=()=>runner(rh,{next:()=>makeQ(k),title:`${SKILL_NAME[k]} drill`,endable:true,onDone:items=>{
+      rh.innerHTML=items.length?`<div class="card stack qin"><h3>${esc(SKILL_NAME[k])} drill</h3>${reviewHTML(items,{title:"Your feedback",drill:false})}<p class="muted small">Level now L${levelFor(k)} ${LVL_NAME[levelFor(k)]}, ${Math.round(levelProgress(k)*100)}% of the way to the next.</p><div class="row"><button class="btn accent" id="drillmore">Keep drilling</button><button class="btn ghost" id="drilldone">Done</button></div></div>`:"";
+      if(items.length){rh.querySelector("#drillmore").onclick=drill;rh.querySelector("#drilldone").onclick=()=>{rh.innerHTML=""}}}});drill();rh.scrollIntoView({behavior:reduced()?"auto":"smooth",block:"start"})});
 }
 function renderLearn(){
   const host=$("#v-learn");const nu=nextUnit();
@@ -196,13 +212,17 @@ function renderLearn(){
   host.querySelectorAll(".unithead").forEach(b=>b.onclick=()=>{const body=b.nextElementSibling;const open=body.hidden;body.hidden=!open;b.setAttribute("aria-expanded",String(open));if(open)body.classList.add("qin")});
   host.querySelectorAll("[data-prac]").forEach(b=>b.onclick=()=>{const U=UNITS.find(x=>x.n===Number(b.dataset.prac));const uh=b.closest(".unitbody").querySelector(".uhost");
     const qs=U.questions.map(pq=>planQ({...pq,unit:U.n})).filter(Boolean);let right=0;
-    runner(uh,{questions:qs,title:`Unit ${U.n}`,onAnswer:(q,ok)=>{if(ok)right++},onDone:()=>{const d=unitDone(U.n);
-      uh.innerHTML=`<div class="card stack qin"><h3>Unit ${U.n} practice</h3><div class="big tabular">${right}/${qs.length}</div><p class="muted">${d?"Unit complete. On to the next one.":"Aim for 80% to complete the unit. Read the lesson again and retry."}</p><div class="row"><button class="btn" id="ub">Back to units</button></div></div>`;
+    runner(uh,{questions:qs,title:`Unit ${U.n}`,onAnswer:(q,ok)=>{if(ok)right++},onDone:items=>{const d=unitDone(U.n);
+      uh.innerHTML=`<div class="card stack qin"><h3>Unit ${U.n} practice</h3><div class="big tabular">${right}/${qs.length}</div><p class="muted">${d?"Unit complete. On to the next one.":"Aim for 80% to complete the unit. Read the lesson again and retry."}</p>${reviewHTML(items,{title:"Your feedback",drill:false})}<div class="row"><button class="btn" id="ub">Back to units</button></div></div>`;
       choosePlan();uh.querySelector("#ub").onclick=renderLearn;}});});
 }
 function renderProfile(){
   renderProgress();const host=$("#tab-progress");
-  host.insertAdjacentHTML("beforeend",`<div class="card stack" id="pubcard"></div>
+  const ivh=(S.iv&&S.iv.hist)||[],notes=S.notes||[];
+  host.insertAdjacentHTML("beforeend",`<div class="card stack"><h3>Interview room</h3>${ivh.length?`<div class="stats">${stat("Sessions",String(ivh.length))}${stat("Average score",pctf(mean(ivh.map(h=>h.score/h.max)),0))}${stat("Best mock",(()=>{const m=ivh.filter(h=>h.max>=50);return m.length?Math.max(...m.map(h=>h.score))+" / 50":"–"})())}${stat("Questions seen",`${Object.keys(S.iv.seen).length} / ${IVQ.length}`)}</div>
+      <div class="list">${ivh.slice(-6).reverse().map(h=>`<div><span>${new Date(h.d).toLocaleDateString("en-GB",{day:"numeric",month:"short"})} · ${esc(h.mode)}</span><span class="tabular small">${h.score} / ${h.max} · ${esc(h.grade)}</span></div>`).join("")}</div>`:`<p class="muted">No interview sessions yet. Try a mock in the Interview tab.</p>`}</div>
+    <div class="card stack"><h3>Your feedback notes · ${notes.length}</h3>${notes.length?`<div class="list">${notes.slice(0,10).map(n=>`<div style="flex-direction:column;align-items:stretch;gap:2px"><span class="small muted">${new Date(n.t).toLocaleDateString("en-GB",{day:"numeric",month:"short"})} · ${esc(n.ctx)} · ${esc((FB_KINDS.find(k=>k[0]===n.kind)||["",""])[1])}</span><span>${esc(n.text||"")}</span></div>`).join("")}</div>`:`<p class="muted small">Notes you save with "Give feedback" or "Report a problem" appear here.</p>`}</div>
+    <div class="card stack" id="pubcard"></div>
     <div class="card stack"><h3>Your data</h3>
     <p class="muted measure">Progress is saved in this browser only. Copy it to move to another device, or paste it into Claude and ask for a review of where you're going wrong.</p>
     <div class="row"><button class="btn" id="copyp">Copy progress</button><button class="btn ghost" id="impp">Import progress</button><button class="btn ghost" id="resetp">Reset</button></div>
@@ -228,7 +248,7 @@ function go(v,push=true,rerender=true){
   if(!VIEWS.includes(v))v="daily";
   document.querySelectorAll("nav button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.v===v)));
   VIEWS.forEach(k=>{const el=$("#v-"+k);const show=k===v;if(show&&el.hidden){el.hidden=false;el.classList.remove("vin");void el.offsetWidth;el.classList.add("vin")}else if(!show)el.hidden=true});
-  if(v==="daily"&&rerender&&!$("#runhost")?.innerHTML.trim())renderDaily();if(v==="profile")renderProfile();if(v==="learn")renderLearn();if(v==="labs"&&rerender&&!$("#v-labs").innerHTML)renderLabs();if(v==="log"&&rerender)renderLog();if(v==="desk"&&!$("#v-desk").innerHTML)renderDesk();if(v==="backtest"&&!$("#v-backtest").innerHTML)renderBacktest();
+  if(v==="daily"&&rerender&&!$("#runhost")?.innerHTML.trim())renderDaily();if(v==="profile")renderProfile();if(v==="learn")renderLearn();if(v==="labs"&&rerender&&!$("#v-labs").innerHTML)renderLabs();if(v==="log"&&rerender)renderLog();if(v==="desk"&&!$("#v-desk").innerHTML)renderDesk();if(v==="interview"&&!$("#v-interview").innerHTML)renderInterview();if(v==="backtest"&&!$("#v-backtest").innerHTML)renderBacktest();
   moveIndicator();if(push)try{history.replaceState(null,"","#"+v)}catch(e){}
 }
 function renderAll(){renderStrip();renderDaily();renderLearn();renderLabs();renderGames();renderProfile()}

@@ -133,6 +133,7 @@ function drawBT(out){
     <details><summary>Year-by-year returns</summary><div class="tablewrap"><table class="kv mtab"><thead><tr><th>Year</th><th>Strategy</th><th>Buy and hold</th></tr></thead><tbody>${Object.entries(years).map(([y,[s,h]])=>`<tr><th>${y}</th><td class="${s>=1?"pos":"neg"}">${pctf(s-1,1)}</td><td class="${h>=1?"pos":"neg"}">${pctf(h-1,1)}</td></tr>`).join("")}</tbody></table></div></details>
     <details class="maths"><summary>Show the code</summary><pre>${esc(st.signal.toString())}</pre><p class="small">pos[t] is the position held from day t's close to day t+1's close, so a signal can only use prices up to day t. Strategy return on day t+1 = pos[t] × price return − cost × |change in position|.</p></details>
     </div>
+    <div class="card stack"><h3>Desk review of this backtest</h3><ul class="tips">${btCritique(st,S1,SI,SO,B1,BO,BT,ppy,n).map(t=>`<li>${t}</li>`).join("")}</ul><div class="row">${reportLink("Backtest: "+st.name+" on "+D.name)}</div></div>
     ${st.sweep?`<div class="card stack"><h3>Parameter sweep · the overfitting test</h3><p class="muted measure">Every cell is a full backtest on the training data, coloured by Sharpe ratio. Click a cell to use those settings. Then look at the test Sharpe of the best training cell: it's usually much lower. Picking the best of many tries is how backtests lie.</p><div id="btsw"></div><p class="small" id="btswnote"></p></div>`:""}
     <div class="card stack"><h3>What to watch for</h3><ul class="tips">
       <li><b>Look-ahead bias.</b> Using information you wouldn't have had at the time. Here every signal is lagged one period.</li>
@@ -153,6 +154,26 @@ function drawBT(out){
   chart(dc,{h:160,xr:[0,n-1],yr:[dmin*1.1,0],xfmt:xf,yfmt:v=>Math.round(v*100)+"%",series:[{pts:idx.map(t=>[t,ddb[t]]),cls:"s2",dash:[5,4],label:"Buy and hold"},{pts:idx.map(t=>[t,dd[t]]),cls:"s1",fill:true,label:st.name}],refX:split,snap,
     tip:x=>{const i=snap(x);return`<b>${d[i]}</b><br>Strategy ${pctf(dd[i])}<br>Buy and hold ${pctf(ddb[i])}`}});
   if(st.sweep)drawSweep(out.querySelector("#btsw"),out.querySelector("#btswnote"),st,c,sp,ppy);
+}
+/* The questions a PM would ask about this backtest, answered from its numbers */
+function btCritique(st,S1,SI,SO,B1,BO,cfg,ppy,n){
+  const out=[];const f=x=>esc(f2(x));
+  if(st.id==="hold")return["This is the benchmark. Pick a strategy above and see whether it beats buy and hold after costs."];
+  if(st.valid&&!st.valid(cfg.p))return["These parameters never trade, so there's nothing to review."];
+  if(SO){const drop=SI.sharpe-SO.sharpe;
+    if(SI.sharpe>0.3&&drop>0.5)out.push(`<b>Likely overfit.</b> Sharpe fell from ${f(SI.sharpe)} in training to ${f(SO.sharpe)} on the test data. Rules tuned on the past often fade.`);
+    else if(SO.sharpe>=SI.sharpe-0.2&&SO.sharpe>0.3)out.push(`<b>Held up out of sample.</b> Test Sharpe ${f(SO.sharpe)} vs training ${f(SI.sharpe)}. That's the result you want, though one test period is still one sample.`);
+    if(BO&&SO.sharpe<BO.sharpe)out.push(`<b>Lost to buy and hold</b> on the test period (Sharpe ${f(SO.sharpe)} vs ${f(BO.sharpe)}). A PM would ask why take the extra complexity.`);
+  }else out.push("<b>No test period.</b> Set training data below 100% so you can judge the rule on data it never saw.");
+  const se=1/Math.sqrt(Math.max(0.5,S1.yrs));
+  out.push(`<b>Is it significant?</b> Over ${S1.yrs.toFixed(1)} years a Sharpe estimate has a standard error of about ${f(se)}. Yours is ${f(S1.sharpe)}, ${Math.abs(S1.sharpe)>2*se?"more than two standard errors from zero":"within two standard errors of zero, so it could be luck"}.`);
+  const turns=S1.trades/Math.max(0.1,S1.yrs);
+  if(turns>20)out.push(`<b>High turnover:</b> about ${Math.round(turns)} trades a year. Each round trip costs ${2*cfg.cost} bps here; real spreads and slippage can be higher. Try 10–20 bps and see if it survives.`);
+  if(S1.mdd<B1.mdd*0.6&&S1.cagr>0)out.push(`<b>Smoother ride:</b> max drawdown ${pctf(S1.mdd)} vs ${pctf(B1.mdd)} for buy and hold. Many strategies earn their keep by cutting crashes, not by beating returns.`);
+  else if(S1.mdd<-0.4)out.push(`<b>Deep drawdown</b> of ${pctf(S1.mdd)}. Would you have kept running this after losing that much? Most investors wouldn't.`);
+  if(S1.exp<0.35)out.push(`<b>Mostly in cash</b> (${pctf(S1.exp,0)} of the time). Compare returns per unit of time invested, or use the idle capital elsewhere.`);
+  if(cfg.short&&S1.sharpe<0)out.push("<b>Shorting hurt.</b> Equities drift up over time, so short signals fight the trend. Try long-only.");
+  return out;
 }
 function drawSweep(host,note,st,c,sp,ppy){
   const sw=st.sweep,grid=[];let best=null;const n=c.length;
