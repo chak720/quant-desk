@@ -217,12 +217,20 @@ const SKILL_NAME={...Object.fromEntries(Object.entries(SKILLS).map(([k,v])=>[k,v
 const LVL_NAME=["","Warm-up","Foundation","Interview","Hard","Desk-ready"];
 
 /* ---------- state ---------- */
-function blankState(){return{v:1,ratings:Object.fromEntries(SKILL_ORDER.map(k=>[k,950])),subs:{},mistakes:[],days:{},games:{sprint:{best:0,hist:[]},mm:{best:0,hist:[]},ladder:{best:0,hist:[]},kelly:{best:0,hist:[]},book:{best:0,hist:[]}},labs:{},updated:null}}
+function blankState(){return{v:1,ratings:Object.fromEntries(SKILL_ORDER.map(k=>[k,950])),subs:{},mistakes:[],days:{},games:{sprint:{best:0,hist:[]},mm:{best:0,hist:[]},ladder:{best:0,hist:[]},kelly:{best:0,hist:[]},book:{best:0,hist:[]}},labs:{},lv:Object.fromEntries(SKILL_ORDER.map(k=>[k,1.5])),updated:null}}
 let S=blankState();
 let DAY={date:todayKey(),attempts:[]};
 let db=null,storeMode="none",PLAN=null,READY=false;
 
-function levelFor(skill){return clamp(1+Math.floor((S.ratings[skill]-800)/120),1,5)}
+/* Difficulty is a per-skill staircase S.lv (1.0 to 5.99). Fast correct answers step it up, misses step it down
+   three times as far, so it settles where you get about 70% right: hard enough to learn, easy enough to keep going. */
+const LV_UP=0.12,LV_SLOW=0.04,LV_DOWN=0.30;
+function lvOf(skill){return clamp(Number(S.lv&&S.lv[skill])||1.5,1,5.99)}
+function levelFor(skill){return Math.floor(lvOf(skill))}
+function levelProgress(skill){const v=lvOf(skill);return v>=5?1:v-Math.floor(v)}
+/* blend between neighbouring levels by the fractional part, so difficulty rises smoothly rather than in jumps */
+function sampleLevel(skill){const v=lvOf(skill);let L=Math.floor(v)+(Math.random()<v-Math.floor(v)?1:0);if(Math.random()<.1)L--;return clamp(L,1,5)}
+let LEVEL_EVENTS=[];
 function subStat(key){return S.subs[key]||(S.subs[key]={n:0,c:0,ms:0,last:null})}
 function accOf(st){return(st.c+1)/(st.n+2)}
 function daysSince(d){if(!d)return 14;return Math.max(0,(Date.parse(todayKey())-Date.parse(d))/864e5)}
@@ -234,7 +242,7 @@ function pickSub(skill,L){
 }
 function makeQ(skill,sub,L){
   if(skill==="mm"){const f=pick(FERMI);return{skill:"mm",sub:"fermi",L:3,q:f[0],ans:f[1],mm:true,sol:`True value: ${fmt(f[1])}`}}
-  L=L||levelFor(skill);if(Math.random()<.25)L=clamp(L+pick([-1,1]),1,5);
+  L=L||sampleLevel(skill);
   sub=sub||pickSub(skill,L);
   const s=SKILLS[skill].subs[sub];L=Math.max(L,s.min);
   return{skill,sub,L,...s.gen(L)};
@@ -299,10 +307,21 @@ function record(q,given,ok,ms,score){
   const key=q.skill+"."+q.sub;const st=subStat(key);
   st.n++;if(ok)st.c++;st.ms+=ms;st.last=todayKey();
   const D=800+120*(q.L-0.5);const r=S.ratings[q.skill];
+  const seen=q.skill==="mm"?subStat("mm.fermi").n:Object.keys(SKILLS[q.skill].subs).reduce((a,k)=>a+subStat(q.skill+"."+k).n,0);
   const exp=1/(1+10**((D-r)/400));
   const res=q.mm?score/100:(ok?(ms<=targetSecs(q)*1000?1:0.85):0);
-  S.ratings[q.skill]=Math.round(r+28*(res-exp));
-  const day=dayRec();day.n++;if(ok)day.c++;day.r={...S.ratings};
+  S.ratings[q.skill]=Math.round(r+(seen<=25?40:24)*(res-exp));
+  if(!q.mm&&!q.custom&&!q.review&&!q.fromPlan&&!q.noStair){
+    const v=lvOf(q.skill),f=Math.floor(v),fast=ms<=targetSecs(q)*1000;
+    /* first 15 answers in a topic move twice as fast so a strong start finds its level within a few days;
+       a run of fast correct answers adds a bonus so easy material doesn't drag on */
+    const warm=seen<=15?1.4:1,run=(S.run=S.run||{})[q.skill]=ok&&fast?(S.run[q.skill]||0)+1:0;
+    const up=Math.min(0.22,warm*LV_UP+(q.L>f?0.04:0)+(run>=3?0.03:0));
+    const nv=clamp(ok?v+(fast?up:LV_SLOW):v-warm*(LV_DOWN+(q.L<f?0.05:0)),1,5.99);
+    (S.lv=S.lv||{})[q.skill]=Math.round(nv*1000)/1000;
+    if(Math.floor(nv)!==f)LEVEL_EVENTS.push({skill:q.skill,from:f,to:Math.floor(nv)});
+  }
+  const day=dayRec();day.n++;if(ok)day.c++;day.r={...S.ratings};day.lv={...S.lv};
   if(!ok&&!q.mm&&!q.review){S.mistakes.unshift({...(q.custom?{qobj:{skill:q.skill,sub:q.sub,L:q.L,q:q.q,ans:q.ans,tol:q.tol,sol:q.sol,label:q.label,custom:true}}:{}),id:Date.now().toString(36)+ri(0,999),skill:q.skill,sub:q.sub,L:q.L,q:q.q,ans:r4(q.ans),given:String(given).slice(0,40),sol:q.sol,t:todayKey(),fixes:0});S.mistakes=S.mistakes.slice(0,60)}
   if(q.review){const m=S.mistakes.find(m=>m.id===q.review);if(m){if(ok){m.fixes++;if(m.fixes>=2)S.mistakes=S.mistakes.filter(x=>x!==m)}else m.fixes=0}}
   if(q.mm&&score<40){S.mistakes=S.mistakes.filter(m=>m.skill!=="mm"||m.q!==q.q);S.mistakes.push({id:Date.now().toString(36),skill:"mm",sub:"fermi",L:3,q:q.q,ans:q.ans,given:String(given),sol:q.sol,t:todayKey(),fixes:0})}
@@ -316,9 +335,9 @@ function record(q,given,ok,ms,score){
 let saveTimer=null;
 function queueSave(){clearTimeout(saveTimer);saveTimer=setTimeout(lsSave,400)}
 function lsSave(){S.updated=new Date().toISOString();
-  const ks=Object.keys(S.days).sort();if(ks.length>150)for(const k of ks.slice(0,ks.length-150))delete S.days[k];
+  const ks=Object.keys(S.days).sort();if(ks.length>400)for(const k of ks.slice(0,ks.length-400))delete S.days[k];
   try{localStorage.setItem("qd_state",JSON.stringify(S));localStorage.setItem("qd_day",JSON.stringify(DAY))}catch(e){}}
-function mergeState(x){if(!x)return;const b=blankState();S={...b,...x,ratings:{...b.ratings,...(x.ratings||{})},games:{...b.games,...(x.games||{})},labs:{...(x.labs||{})}}}
+function mergeState(x){if(!x)return;const b=blankState();S={...b,...x,ratings:{...b.ratings,...(x.ratings||{})},games:{...b.games,...(x.games||{})},labs:{...(x.labs||{})},lv:{...b.lv,...(x.lv||Object.fromEntries(Object.entries(x.ratings||{}).map(([k,r])=>[k,clamp(1+(r-800)/120,1,5.99)])))}}}
 /* per-day activity counters beyond questions: labs opened/finished, games played */
 function dayRec(){return S.days[todayKey()]||(S.days[todayKey()]={n:0,c:0,daily:false})}
 function bumpDay(k){const d=dayRec();d[k]=(d[k]||0)+1;queueSave()}

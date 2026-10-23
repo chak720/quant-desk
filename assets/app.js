@@ -38,7 +38,7 @@ function runner(host,{questions,next,onDone,title,showProgress=true,onAnswer}){
     }else{given=skipped?"skip":host.querySelector("#ans").value;const v=parseNum(given);
       if(!skipped&&isNaN(v)){flash("Enter a number, a fraction like 3/8, or a percentage.");return}
       ok=!skipped&&close(q.pct&&/%/.test(given)?v*100:v,q.ans,q.tol||{abs:1e-6,rel:1e-6});}
-    record(q,given,ok,ms,score);onAnswer&&onAnswer(q,ok,score);
+    record(q,given,ok,ms,score);onAnswer&&onAnswer(q,ok,score);for(const ev of LEVEL_EVENTS.splice(0))if(ev.to>ev.from)toast(`Level up: ${SKILL_NAME[ev.skill]} is now L${ev.to} ${LVL_NAME[ev.to]}`);
     host.querySelectorAll("input,#submit,#skip").forEach(el=>el.disabled=true);
     const card=host.querySelector(".ticket");card.classList.remove("qin");card.classList.add(ok?"good":"shake");
     const fb=host.querySelector("#fbhost");
@@ -86,7 +86,7 @@ function playSprint(host){
   const nextQ=()=>{cur=gen();sq.textContent=cur.q;inp.value=""};nextQ();inp.focus({preventScroll:true});
   inp.oninput=()=>{if(Number(inp.value.trim())===cur.a){score++;host.querySelector("#ss").textContent=score;nextQ()}};
   const finish=()=>{clearInterval(timer);const day=S.days[todayKey()]||(S.days[todayKey()]={n:0,c:0,daily:false});
-    S.ratings.arith=Math.round(S.ratings.arith+clamp((score-(20+L*6))*1.2,-20,20));endGame(host,"sprint",score,"Sprint score")};
+    S.ratings.arith=Math.round(S.ratings.arith+clamp((score-(20+L*6))*1.2,-20,20));S.lv.arith=clamp(lvOf("arith")+clamp((score-(20+L*6))/40,-0.2,0.3),1,5.99);endGame(host,"sprint",score,"Sprint score")};
   timer=setInterval(()=>{const left=Math.max(0,120-(performance.now()-t0)/1000);host.querySelector("#clock").textContent=Math.ceil(left)+"s";host.querySelector("#pb").style.width=left/120*100+"%";if(left<=0)finish()},200);
   host.querySelector("#sstop").onclick=finish;
 }
@@ -96,7 +96,7 @@ function playMM(host){
 }
 function playLadder(host){
   let lvl=1,streak=0,lives=3,score=0;const ks=["prob","ev","stats"];
-  runner(host,{title:"Probability ladder",showProgress:false,next:()=>lives>0?makeQ(pick(ks),null,lvl):null,onAnswer:(q,ok)=>{
+  runner(host,{title:"Probability ladder",showProgress:false,next:()=>lives>0?{...makeQ(pick(ks),null,lvl),noStair:true}:null,onAnswer:(q,ok)=>{
     if(ok){score++;streak++;if(streak>=2){lvl=Math.min(5,lvl+1);streak=0}}else{lives--;streak=0}},onDone:()=>endGame(host,"ladder",score,"Ladder score")});
 }
 
@@ -107,8 +107,9 @@ function renderProgress(){
   const cells=[];const d=new Date();d.setDate(d.getDate()-34);
   for(let i=0;i<35;i++){const k=d.toLocaleDateString("en-CA");const v=S.days[k];const n=v?.n||0;cells.push(`<i class="${n>=20?"l3":n>=8?"l2":n>0?"l1":""} ${k===todayKey()?"today":""}" title="${k}: ${n} questions"></i>`);d.setDate(d.getDate()+1)}
   host.innerHTML=`<div class="grid">${SKILL_ORDER.map(k=>{const L=levelFor(k);const subs=k==="mm"?["fermi"]:Object.keys(SKILLS[k].subs);let n=0,c=0;subs.forEach(s=>{const st=subStat(k+"."+s);n+=st.n;c+=st.c});
-      return`<div class="card skill"><div class="top"><h3>${esc(SKILL_NAME[k])}</h3><span class="lvl">L${L} ${LVL_NAME[L]}</span></div><div class="top"><span class="r tabular">${S.ratings[k]}</span><span class="muted tabular" style="font-size:13px">${n?Math.round(c/n*100)+"% of "+n:"not started"}</span></div><div class="bar"><i style="width:${clamp((S.ratings[k]-700)/700*100,3,100)}%"></i></div><span class="muted" style="font-size:12.5px">${(()=>{const e=eta(k);return e.ready?"At interview level (1250+)":`${esc(e.text)} to interview level${e.measured?"":" (estimate)"}`})()}</span></div>`}).join("")}</div>
+      return`<div class="card skill"><div class="top"><h3>${esc(SKILL_NAME[k])}</h3><span class="lvl">L${L} ${LVL_NAME[L]}</span></div><div class="top"><span class="r tabular">${S.ratings[k]}</span><span class="muted tabular" style="font-size:13px">${n?Math.round(c/n*100)+"% of "+n:"not started"}</span></div><div class="bar" title="Progress to the next level"><i style="width:${clamp(levelProgress(k)*100,3,100)}%"></i></div><span class="muted small">${L<5?`${Math.round(levelProgress(k)*100)}% of the way to L${L+1}`:"Top level"}</span><span class="muted" style="font-size:12.5px">${(()=>{const e=eta(k);return e.ready?"At interview level (1250+)":`${esc(e.text)} to interview level${e.measured?"":" (estimate)"}`})()}</span></div>`}).join("")}</div>
     <div class="card" style="display:flex;flex-direction:column;gap:10px"><h3>Last 26 weeks</h3>${heatmap(S.days)}</div>
+    <div class="card stack"><h3>Progress over time</h3><div id="progcharts"></div></div>
     <div class="card" style="display:flex;flex-direction:column;gap:6px"><h3>Weak spots</h3>
       <div class="list">${weak.length?weak.slice(0,6).map(w=>`<div><span class="l">${esc(w.k==="mm"?"Estimation":SKILLS[w.k].subs[w.s].label)} <span class="muted" style="font-size:13px">· ${esc(SKILL_NAME[w.k])}</span></span><span class="pill ${w.acc<.5?"weak":w.acc<.8?"mid":"ok"} tabular">${Math.round(w.acc*100)}% · ${w.st.n}</span></div>`).join(""):`<div><span class="muted">Answer a few questions in each topic and your weakest areas show up here.</span></div>`}</div></div>
     <div class="card" style="display:flex;flex-direction:column;gap:6px"><h3>Mistakes queued for review · ${S.mistakes.length}</h3>
@@ -153,7 +154,8 @@ function renderDaily(){
   const host=$("#v-daily");const done=S.days[todayKey()]?.daily;
   const read=PLAN&&(S.lessonsRead||[]).includes(PLAN.id);
   const nq=PLAN&&Array.isArray(PLAN.questions)&&S.planDone!==PLAN.id?Math.min(6,PLAN.questions.length):0;
-  host.innerHTML=`${PLAN&&PLAN.lesson?`<div class="card lesson">
+  const visitor=PUBLISHED&&!Object.keys(S.days).length;
+  host.innerHTML=`${visitor?visitorCard():""}${PLAN&&PLAN.lesson?`<div class="card lesson">
       <div class="row between"><h3>${PLAN.fromUnit?"Next lesson":"Today's lesson"}</h3>${read?`<span class="pill ok">read</span>`:""}</div>
       <h2>${esc(PLAN.lesson.title||"Lesson")}</h2>${PLAN.message?`<p class="muted measure">${esc(PLAN.message)}</p>`:""}
       ${lessonHTML(PLAN.lesson,!read)}
@@ -172,9 +174,10 @@ function renderDaily(){
   host.querySelector("#startDaily").onclick=()=>{
     const qs=buildDaily();let right=0;const rh=host.querySelector("#runhost");
     runner(rh,{questions:qs,title:"Daily set",onAnswer:(q,ok)=>{if(ok)right++},onDone:()=>{
-      const day=S.days[todayKey()]||(S.days[todayKey()]={n:0,c:0});day.daily=true;if(PLAN)S.planDone=PLAN.id;queueSave();renderStrip();
-      rh.innerHTML=`<div class="card stack qin"><h3>Set complete</h3><div class="big tabular" data-count="${right}">0</div><p class="muted">out of ${qs.length}. Misses come back in tomorrow's review.</p><div class="row"><button class="btn" id="again">Back to Daily</button><button class="btn ghost" id="toprof">See progress</button></div></div>`;
+      const day=S.days[todayKey()]||(S.days[todayKey()]={n:0,c:0});day.daily=true;if(PLAN)S.planDone=PLAN.id;lsSave();renderStrip();
+      rh.innerHTML=`<div class="card stack qin"><h3>Set complete</h3><div class="big tabular" data-count="${right}">0</div><p class="muted">out of ${qs.length}. Misses come back in tomorrow's review.</p><div class="row"><button class="btn accent" id="pubday">Publish today to my log</button><button class="btn" id="again">Back to Daily</button><button class="btn ghost" id="toprof">See progress</button></div></div>`;
       countUp(rh.querySelector("[data-count]"),"/"+qs.length);
+      rh.querySelector("#pubday").onclick=()=>publishFlow(rh.querySelector(".card"));
       rh.querySelector("#again").onclick=()=>{choosePlan();renderDaily()};rh.querySelector("#toprof").onclick=()=>go("profile");}});
     rh.scrollIntoView({behavior:reduced()?"auto":"smooth",block:"start"});
   };
@@ -199,9 +202,7 @@ function renderLearn(){
 }
 function renderProfile(){
   renderProgress();const host=$("#tab-progress");
-  host.insertAdjacentHTML("beforeend",`<div class="card stack"><h3>Public log</h3>
-    <p class="muted measure">Visitors can't see your browser's progress. Publishing saves a summary (streak, activity, ratings, labs and game bests, no individual answers) as <code>progress.json</code>. Upload it to the root of the quant-desk repo on GitHub (Add file → Upload files, replacing the old one) and the Log page updates for everyone.</p>
-    <div class="row"><button class="btn accent" id="pubp">Publish to public log</button><button class="btn ghost" id="prevp">Preview</button></div><div id="pubmsg" class="small"></div></div>
+  host.insertAdjacentHTML("beforeend",`<div class="card stack" id="pubcard"></div>
     <div class="card stack"><h3>Your data</h3>
     <p class="muted measure">Progress is saved in this browser only. Copy it to move to another device, or paste it into Claude and ask for a review of where you're going wrong.</p>
     <div class="row"><button class="btn" id="copyp">Copy progress</button><button class="btn ghost" id="impp">Import progress</button><button class="btn ghost" id="resetp">Reset</button></div>
@@ -209,8 +210,7 @@ function renderProfile(){
     <div id="impbox" hidden class="stack"><label for="imptext" class="small">Paste copied progress</label><textarea id="imptext" rows="4"></textarea><div class="row"><button class="btn" id="impgo">Load it</button></div></div>
     <div id="resetbox" hidden class="row"><span class="small">This deletes every rating, mistake and score in this browser.</span><button class="btn danger" id="resetgo">Delete my progress</button></div></div>`);
   const msg=t=>{host.querySelector("#pmsg").textContent=t};
-  host.querySelector("#pubp").onclick=()=>{downloadSnapshot();host.querySelector("#pubmsg").textContent="Downloaded progress.json. Upload it to the repo root on GitHub to update the public log."};
-  host.querySelector("#prevp").onclick=()=>{$("#v-log").innerHTML=logHTML(publicSnapshot(),{published:false});go("log",true,false)};
+  renderPubCard(host.querySelector("#pubcard"));progressCharts(host.querySelector("#progcharts"),S.days);
   host.querySelector("#copyp").onclick=async()=>{const txt=JSON.stringify({quantDesk:1,state:S,summary:JSON.parse(statsSummary())});
     try{await navigator.clipboard.writeText(txt);msg("Copied. Paste it into Claude with \"review my Quant Desk progress\".")}catch(e){const b=host.querySelector("#impbox");b.hidden=false;host.querySelector("#imptext").value=txt;host.querySelector("#imptext").select();msg("Couldn't copy automatically. The text is selected below: copy it from there.")}};
   host.querySelector("#impp").onclick=()=>{host.querySelector("#impbox").hidden=false;host.querySelector("#imptext").value="";host.querySelector("#imptext").focus()};
@@ -218,6 +218,8 @@ function renderProfile(){
   host.querySelector("#resetp").onclick=()=>{host.querySelector("#resetbox").hidden=false};
   host.querySelector("#resetgo").onclick=()=>{S=blankState();DAY={date:todayKey(),attempts:[]};lsSave();choosePlan();renderAll();go("profile");$("#pmsg").textContent="Progress reset."};
 }
+function toast(msg){let t=$("#toast");if(!t){t=document.createElement("div");t.id="toast";t.setAttribute("role","status");document.body.appendChild(t)}
+  t.textContent=msg;t.classList.remove("show");void t.offsetWidth;t.classList.add("show");clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove("show"),3800)}
 function countUp(el,suffix){const to=Number(el.dataset.count)||0;if(reduced()){el.textContent=to+(suffix||"");return}const t0=performance.now();
   const f=t=>{const p=Math.min(1,(t-t0)/700);el.textContent=Math.round(to*(1-Math.pow(1-p,3)))+(suffix||"");if(p<1)requestAnimationFrame(f)};requestAnimationFrame(f)}
 const reduced=()=>window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;

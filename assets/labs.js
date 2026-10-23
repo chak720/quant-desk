@@ -45,7 +45,7 @@ function drawChart(cv,hx){
   for(const v of yt){const yy=o.logy?Y(10**v):Y(v);c.strokeStyle=col.line;c.beginPath();c.moveTo(L,Math.round(yy)+.5);c.lineTo(W-R,Math.round(yy)+.5);c.stroke();
     c.fillStyle=col.muted;c.textAlign="right";c.fillText((o.yfmt||fmtTick)(o.logy?10**v:v),L-6,yy)}
   c.textAlign="center";c.textBaseline="top";
-  for(const v of tickVals(x0,x1,Math.max(2,Math.floor(pw/90)))){c.fillStyle=col.muted;c.fillText((o.xfmt||fmtTick)(v),X(v),T+ph+6)}
+  for(const v of tickVals(x0,x1,Math.max(2,Math.floor(pw/90)))){const t=(o.xfmt||fmtTick)(v),hw=c.measureText(t).width/2;c.fillStyle=col.muted;c.fillText(t,clamp(X(v),hw+2,W-hw-2),T+ph+6)}
   if(o.xlabel){c.fillText(o.xlabel,L+pw/2,T+ph+22)}
   c.save();c.beginPath();c.rect(L,T-2,pw,ph+4);c.clip();
   if(o.bars)for(const b of o.bars){c.fillStyle=col[b.cls||"s1"];for(const [a,z,v] of b.bins){if(!v)continue;const xa=X(a)+1,xz=X(z)-1,yy=Y(v);const r=Math.min(4,(xz-xa)/2);
@@ -356,8 +356,8 @@ function streaks(days){
   return{cur,best};
 }
 function publicSnapshot(){
-  const days=Object.fromEntries(Object.entries(S.days).sort().slice(-182).map(([k,v])=>[k,{n:v.n||0,c:v.c||0,daily:!!v.daily,labs:v.labs||0,g:v.g||0}]));
-  return{quantDeskLog:1,owner:OWNER,updated:new Date().toISOString(),ratings:Object.fromEntries(SKILL_ORDER.map(k=>[k,S.ratings[k]])),
+  const days=Object.fromEntries(Object.entries(S.days).sort().slice(-400).map(([k,v])=>[k,{n:v.n||0,c:v.c||0,daily:!!v.daily,labs:v.labs||0,g:v.g||0,...(v.r?{r:v.r}:{})}]));
+  return{quantDeskLog:1,owner:OWNER,updated:new Date().toISOString(),ratings:Object.fromEntries(SKILL_ORDER.map(k=>[k,S.ratings[k]])),lv:Object.fromEntries(SKILL_ORDER.map(k=>[k,lvOf(k)])),
     labs:LABS.map(l=>({id:l.id,title:l.title,done:labDone(l.id),t:S.labs[l.id]?.t||null})),units:{done:UNITS.filter(u=>unitDone(u.n)).length,total:UNITS.length},
     games:Object.fromEntries(Object.entries(S.games).map(([k,v])=>[k,v.best])),days};
 }
@@ -376,17 +376,73 @@ function logHTML(snap,{published}){
     <p class="muted small">${published?`Last published ${new Date(snap.updated).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}.`:"This is what visitors will see after you publish."}</p>
     <div class="stats">${stat("Current streak",cur+(cur===1?" day":" days"))}${stat("Longest streak",best+(best===1?" day":" days"))}${stat("Days practised",String(active.length))}${stat("Questions answered",n.toLocaleString("en-GB"))}${stat("Accuracy",n?pctf(c/n,0):"–")}${stat("Labs complete",`${labsDone} / ${(snap.labs||[]).length}`)}</div>
     ${heatmap(days)}</div>
-    <div class="grid tight">${Object.entries(snap.ratings||{}).map(([k,r])=>{const L=clamp(1+Math.floor((r-800)/120),1,5);return`<div class="card skill"><div class="top"><h3>${esc(SKILL_NAME[k]||k)}</h3><span class="lvl">L${L} ${LVL_NAME[L]}</span></div><span class="r tabular">${r}</span><div class="bar"><i style="width:${clamp((r-700)/700*100,3,100)}%"></i></div></div>`}).join("")}</div>
+    <div class="card stack"><h3>Progress over time</h3><div id="logcharts"></div></div>
+    <div class="grid tight">${Object.entries(snap.ratings||{}).map(([k,r])=>{const v=snap.lv&&snap.lv[k]?Number(snap.lv[k]):clamp(1+(r-800)/120,1,5.99),L=clamp(Math.floor(v),1,5);return`<div class="card skill"><div class="top"><h3>${esc(SKILL_NAME[k]||k)}</h3><span class="lvl">L${L} ${LVL_NAME[L]}</span></div><span class="r tabular">${r}</span><div class="bar" title="Progress to the next level"><i style="width:${clamp((L>=5?1:v-L)*100,3,100)}%"></i></div></div>`}).join("")}</div>
     <div class="card stack"><h3>Recent sessions</h3><div class="list">${recent.length?recent.map(k=>{const v=days[k];return`<div><span>${new Date(k).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}</span><span class="muted tabular small">${[v.n?`${v.n} qs · ${Math.round(v.c/v.n*100)}%`:"",v.daily?"daily set":"",v.labs?`${v.labs} lab${v.labs>1?"s":""}`:"",v.g?`${v.g} game${v.g>1?"s":""}`:""].filter(Boolean).join(" · ")}</span></div>`}).join(""):`<div><span class="muted">No sessions yet.</span></div>`}</div></div>
     <div class="card stack"><h3>Labs and track</h3><div class="list">${(snap.labs||[]).map(l=>`<div><span>${esc(l.title)}</span><span class="pill ${l.done?"ok":"todo"}">${l.done?"done":"not yet"}</span></div>`).join("")}<div><span>Market-making track units</span><span class="tabular small">${snap.units?`${snap.units.done} / ${snap.units.total}`:"–"}</span></div></div></div>`;
 }
 let PUBLISHED=null;
 async function loadPublished(){try{const r=await fetch("progress.json",{cache:"no-store"});if(r.ok){const j=await r.json();if(j&&j.quantDeskLog)PUBLISHED=j}}catch(e){}}
+const REPO="chak720/quant-desk",BRANCH="main";
+function unpublished(){return Object.keys(S.days).length>0&&(!PUBLISHED||Date.parse(PUBLISHED.updated)<Date.parse(S.updated||0))}
 function renderLog(){
-  const host=$("#v-log");const hasLocal=Object.keys(S.days).length>0;
-  host.innerHTML=PUBLISHED?logHTML(PUBLISHED,{published:true}):`<div class="card stack"><h3>Public practice log</h3><h2>Nothing published yet</h2><p class="muted measure">Practice happens in the browser. Once it's published from Profile, this page shows the streak, activity calendar, ratings and completed labs to anyone who visits.</p></div>`;
-  if(hasLocal&&(!PUBLISHED||Date.parse(PUBLISHED.updated)<Date.parse(S.updated||0)))
-    host.insertAdjacentHTML("afterbegin",`<div class="banner">Your browser has practice that isn't on the public log yet. Go to Profile → Publish to public log.</div>`);
+  const host=$("#v-log");
+  host.innerHTML=PUBLISHED?logHTML(PUBLISHED,{published:true}):`<div class="card stack"><h3>Public practice log</h3><h2>Nothing published yet</h2><p class="muted measure">Practice happens in the browser. Once it's published from Profile, this page shows the streak, activity calendar, rating chart and completed labs to anyone who visits.</p></div>`;
+  if(PUBLISHED)progressCharts(host.querySelector("#logcharts"),PUBLISHED.days);
+  if(unpublished())host.insertAdjacentHTML("afterbegin",`<div class="banner row between"><span>Your browser has practice that isn't on the public log yet.</span><button class="btn ghost chip" data-pub>Publish now</button></div>`);
+  host.querySelector("[data-pub]")?.addEventListener("click",e=>publishFlow(e.target.closest(".banner")));
+}
+function visitorCard(){
+  const {cur}=streaks(PUBLISHED.days||{});const n=Object.values(PUBLISHED.days||{}).filter(v=>v.n||v.daily||v.labs||v.g).length;
+  return`<div class="card visitor"><div><h3>${esc(PUBLISHED.owner||OWNER)}'s practice</h3><p><b class="tabular">${cur}</b>-day streak · <b class="tabular">${n}</b> days practised</p></div><a class="btn ghost" href="#log">View the practice log</a></div>`;
+}
+
+/* ---------- progress charts: rating over time and daily volume ---------- */
+function progressCharts(host,days){
+  if(!host)return;const ks=Object.keys(days||{}).sort();const pts=ks.filter(k=>days[k].r);
+  if(!ks.length){host.innerHTML=`<p class="muted small">Charts appear once there's some practice to show.</p>`;return}
+  const t0=Date.parse(ks[0]),dx=k=>Math.round((Date.parse(k)-t0)/864e5),dl=x=>new Date(t0+x*864e5).toLocaleDateString("en-GB",{day:"numeric",month:"short"});
+  const overall=r=>Math.round(mean(SKILL_ORDER.map(k=>r[k]).filter(v=>v!=null)));const sel=host.dataset.sel||"all";
+  host.innerHTML=`${pts.length>=2?`<div class="row" role="group" aria-label="Topic to compare">${["all",...SKILL_ORDER].map(k=>`<button class="btn ghost chip" data-ts="${k}" aria-pressed="${k===sel}">${k==="all"?"Overall":esc(SKILL_NAME[k])}</button>`).join("")}</div><div class="rch"></div><p class="muted small">Dashed line: 1250, interview level. Ratings rise for right answers on pace and fall for misses.</p>`:`<p class="muted small">The rating chart starts after two days of practice.</p>`}<div class="qch"></div>`;
+  if(pts.length>=2){
+    const rcv=chartBox(host.querySelector(".rch"),"Rating over time");
+    const ov=pts.map(k=>[dx(k),overall(days[k].r)]),tp=sel==="all"?null:pts.filter(k=>days[k].r[sel]!=null).map(k=>[dx(k),days[k].r[sel]]);
+    const ys=[...ov,...(tp||[]),[0,1250]].map(p=>p[1]),xs=ov.map(p=>p[0]);
+    chart(rcv,{h:220,xr:[xs[0],Math.max(xs[0]+1,xs[xs.length-1])],yr:[Math.floor((Math.min(...ys)-30)/50)*50,Math.ceil((Math.max(...ys)+30)/50)*50],xfmt:dl,
+      series:[{pts:ov,cls:"s1",label:"Overall rating"},...(tp?[{pts:tp,cls:"s2",label:SKILL_NAME[sel]}]:[])],refY:[{y:1250}],
+      snap:x=>xs.reduce((a,b)=>Math.abs(b-x)<Math.abs(a-x)?b:a,xs[0]),
+      tip:x=>{const k=pts.find(k=>dx(k)===x);if(!k)return"";const r=days[k].r;return`<b>${dl(x)}</b><br>Overall ${overall(r)}${sel!=="all"&&r[sel]!=null?`<br>${esc(SKILL_NAME[sel])} ${r[sel]}`:""}`}});
+    host.querySelectorAll("[data-ts]").forEach(b=>b.onclick=()=>{host.dataset.sel=b.dataset.ts;progressCharts(host,days)});
+  }
+  const qcv=chartBox(host.querySelector(".qch"),"Questions answered per day");const last=ks.slice(-60),q0=dx(last[0]),q1=dx(last[last.length-1]);
+  chart(qcv,{h:140,xr:[q0-0.5,q1+0.5],yr:[0,Math.max(10,...last.map(k=>days[k].n||0))*1.1],xfmt:x=>Number.isInteger(x)?dl(x):"",
+    bars:[{bins:last.map(k=>[dx(k)-0.45,dx(k)+0.45,days[k].n||0]),cls:"s3",label:"Questions answered per day"}],legend:true,
+    snap:x=>Math.round(x),tip:x=>{const k=last.find(k=>dx(k)===x);const v=k&&days[k];return v?`<b>${dl(x)}</b><br>${v.n||0} questions${v.n?` · ${Math.round(v.c/v.n*100)}% right`:""}${v.daily?"<br>Daily set done":""}`:`<b>${dl(x)}</b><br>No practice`}});
+}
+
+/* ---------- publishing: copy the snapshot, then paste it into GitHub's editor. No token is stored anywhere. ---------- */
+function ghEditUrl(){return PUBLISHED?`https://github.com/${REPO}/edit/${BRANCH}/progress.json`:`https://github.com/${REPO}/new/${BRANCH}?filename=progress.json`}
+async function publishFlow(host){
+  const txt=JSON.stringify(publicSnapshot());let copied=false;
+  try{await navigator.clipboard.writeText(txt);copied=true}catch(e){}
+  const out=host.querySelector(".pubout")||host.appendChild(Object.assign(document.createElement("div"),{className:"pubout stack"}));
+  out.innerHTML=`<ol class="steps small">
+      <li>${copied?"Your log is copied.":"Copy the text in the box below."}</li>
+      <li><a href="${ghEditUrl()}" target="_blank" rel="noopener">Open progress.json on GitHub</a>${PUBLISHED?" and select everything in the editor":""}.</li>
+      <li>Paste, then press <b>Commit changes</b>. The public log updates within a few minutes.</li></ol>
+    ${copied?"":`<label class="small" for="pubtxt">Your log</label><textarea id="pubtxt" rows="3" readonly>${esc(txt)}</textarea>`}`;
+  const ta=out.querySelector("textarea");if(ta){ta.focus();ta.select()}
+  if(copied)window.open(ghEditUrl(),"_blank","noopener");
+}
+function renderPubCard(host){
+  const when=PUBLISHED?new Date(PUBLISHED.updated).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):null;
+  host.innerHTML=`<h3>Public log</h3>
+    <p class="muted measure">Visitors see your streak, activity calendar, rating chart, levels, labs and game bests on the <a href="#log">Log</a> page. Individual answers and mistakes stay private. ${when?`Last published ${when}.`:"Nothing published yet."}</p>
+    ${unpublished()?`<p class="small">You've practised since your last publish.</p>`:""}
+    <div class="row"><button class="btn accent" id="pubgo">Publish to public log</button><button class="btn ghost" id="prevp">Preview</button><button class="btn ghost" id="pubdl">Download file</button></div>`;
+  host.querySelector("#pubgo").onclick=()=>publishFlow(host);
+  host.querySelector("#pubdl").onclick=downloadSnapshot;
+  host.querySelector("#prevp").onclick=()=>{const v=$("#v-log");v.innerHTML=logHTML(publicSnapshot(),{published:false});progressCharts(v.querySelector("#logcharts"),S.days);go("log",true,false)};
 }
 function downloadSnapshot(){
   const blob=new Blob([JSON.stringify(publicSnapshot(),null,1)],{type:"application/json"});const a=document.createElement("a");

@@ -196,3 +196,15 @@ nav button{min-width:0;padding-inline:8px}
 .sw.box{width:10px;height:10px;border:0;border-radius:2px;background:var(--s1)}
 .sw.box.s2{background:var(--s2)}.sw.box.s3{background:var(--s3)}
 .skill .top{flex-wrap:wrap}.skill .top h3{min-width:0}
+.visitor{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;border-color:var(--accent)}
+.visitor p{margin-top:4px}
+a.btn{text-decoration:none;display:inline-block}
+.steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+.steps a,.measure a{color:var(--accent)}
+.form{display:flex;flex-direction:column;gap:10px}
+.form label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;min-width:0}
+.form .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.form input[type=text]{font-size:15px}
+#toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);opacity:0;pointer-events:none;background:var(--ink);color:var(--bg);font:600 14px var(--body);padding:10px 16px;border-radius:10px;box-shadow:0 10px 30px -10px rgba(0,0,0,.5);transition:opacity var(--med) var(--ease),transform var(--med) var(--ease);z-index:10;max-width:calc(100vw - 32px)}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){#toast{transition:opacity 1ms}}
