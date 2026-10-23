@@ -1,6 +1,6 @@
 "use strict";
 /* Quant Desk labs: interactive simulations that show how core quant finance ideas work,
-   plus the Kelly and order-flow games and the public practice log. Uses engine.js helpers. */
+   plus the Kelly game, progress charts and the public practice log. Uses engine.js helpers. */
 
 /* ---------- maths helpers ---------- */
 function randn(){let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}
@@ -8,11 +8,13 @@ function erf(x){const s=Math.sign(x);x=Math.abs(x);const t=1/(1+0.3275911*x);
   const y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);return s*y}
 const Ncdf=x=>0.5*(1+erf(x/Math.SQRT2));
 const Npdf=x=>Math.exp(-x*x/2)/Math.sqrt(2*Math.PI);
-function bs(type,S,K,sig,T){
-  if(T<=0||sig<=0){const p=type==="call"?Math.max(S-K,0):Math.max(K-S,0);return{price:p,delta:type==="call"?(S>K?1:0):(S<K?-1:0),gamma:0,vega:0,theta:0}}
-  const d1=(Math.log(S/K)+sig*sig*T/2)/(sig*Math.sqrt(T)),d2=d1-sig*Math.sqrt(T);
-  const price=type==="call"?S*Ncdf(d1)-K*Ncdf(d2):K*Ncdf(-d2)-S*Ncdf(-d1);
-  return{price,delta:type==="call"?Ncdf(d1):Ncdf(d1)-1,gamma:Npdf(d1)/(S*sig*Math.sqrt(T)),vega:S*Npdf(d1)*Math.sqrt(T)/100,theta:-S*Npdf(d1)*sig/(2*Math.sqrt(T))/365};
+/* Black–Scholes with continuous rate r. vega per 1 vol point, theta per calendar day, rho per 1% rate move */
+function bs(type,S,K,sig,T,r=0){
+  if(T<=0||sig<=0){const p=type==="call"?Math.max(S-K,0):Math.max(K-S,0);return{price:p,delta:type==="call"?(S>K?1:0):(S<K?-1:0),gamma:0,vega:0,theta:0,rho:0,d1:NaN,d2:NaN}}
+  const sq=Math.sqrt(T),d1=(Math.log(S/K)+(r+sig*sig/2)*T)/(sig*sq),d2=d1-sig*sq,disc=K*Math.exp(-r*T);
+  const call=type==="call",price=call?S*Ncdf(d1)-disc*Ncdf(d2):disc*Ncdf(-d2)-S*Ncdf(-d1);
+  const theta=(-S*Npdf(d1)*sig/(2*sq)+(call?-r*disc*Ncdf(d2):r*disc*Ncdf(-d2)))/365;
+  return{price,d1,d2,delta:call?Ncdf(d1):Ncdf(d1)-1,gamma:Npdf(d1)/(S*sig*sq),vega:S*Npdf(d1)*sq/100,theta,rho:(call?disc*T*Ncdf(d2):-disc*T*Ncdf(-d2))/100};
 }
 const quantile=(a,q)=>{const s=[...a].sort((x,y)=>x-y);return s[clamp(Math.floor(q*(s.length-1)),0,s.length-1)]};
 const mean=a=>a.reduce((x,y)=>x+y,0)/a.length;
@@ -52,15 +54,19 @@ function drawChart(cv,hx){
     c.beginPath();c.moveTo(xa,Y(0));c.lineTo(xa,yy+r);c.quadraticCurveTo(xa,yy,xa+r,yy);c.lineTo(xz-r,yy);c.quadraticCurveTo(xz,yy,xz,yy+r);c.lineTo(xz,Y(0));c.fill()}}
   for(const r of o.refY||[]){c.strokeStyle=col.muted;c.setLineDash([4,4]);c.beginPath();c.moveTo(L,Y(r.y));c.lineTo(W-R,Y(r.y));c.stroke();c.setLineDash([])}
   for(const r of o.refX||[]){c.strokeStyle=col[r.cls||"muted"];c.setLineDash([4,4]);c.beginPath();c.moveTo(X(r.x),T);c.lineTo(X(r.x),T+ph);c.stroke();c.setLineDash([])}
-  for(const s of o.series||[]){c.strokeStyle=col[s.cls||"s1"];c.globalAlpha=s.alpha??1;c.lineWidth=s.w||2;c.lineJoin="round";if(s.dash)c.setLineDash(s.dash);
-    c.beginPath();s.pts.forEach(([x,y],i)=>{i?c.lineTo(X(x),Y(y)):c.moveTo(X(x),Y(y))});c.stroke();c.setLineDash([]);c.globalAlpha=1}
+  /* bands: shaded x-ranges (e.g. when a strategy holds a position); points: scatter dots */
+  for(const b of o.bands||[]){c.fillStyle=col[b.cls||"s1"];c.globalAlpha=b.alpha??.1;c.fillRect(X(b.x0),T,Math.max(1,X(b.x1)-X(b.x0)),ph);c.globalAlpha=1}
+  for(const p of o.points||[]){c.fillStyle=col[p.cls||"s1"];c.globalAlpha=p.alpha??.8;for(const [x,y] of p.pts){c.fillRect(X(x)-1.5,Y(y)-1.5,3,3)}c.globalAlpha=1}
+  for(const s of o.series||[]){c.strokeStyle=col[s.cls||"s1"];c.lineWidth=s.w||2;c.lineJoin="round";if(s.dash)c.setLineDash(s.dash);
+    if(s.fill&&s.pts.length){c.fillStyle=col[s.cls||"s1"];c.globalAlpha=.14;c.beginPath();c.moveTo(X(s.pts[0][0]),Y(o.logy?y0:0));s.pts.forEach(([x,y])=>c.lineTo(X(x),Y(y)));c.lineTo(X(s.pts[s.pts.length-1][0]),Y(o.logy?y0:0));c.fill()}
+    c.globalAlpha=s.alpha??1;c.beginPath();s.pts.forEach(([x,y],i)=>{i?c.lineTo(X(x),Y(y)):c.moveTo(X(x),Y(y))});c.stroke();c.setLineDash([]);c.globalAlpha=1}
   c.restore();
   for(const d of o.dots||[]){c.fillStyle=col[d.cls||"s1"];c.strokeStyle=col.surface;c.lineWidth=2;c.beginPath();c.arc(X(d.x),Y(d.y),5,0,7);c.fill();c.stroke()}
   (o.refX||[]).forEach((r,i)=>{if(!r.label)return;c.fillStyle=col.muted;c.textAlign="left";c.textBaseline="top";c.fillText(r.label,Math.min(X(r.x)+4,W-R-c.measureText(r.label).width),T+i*14)});
   if(hx!=null){c.strokeStyle=col.ink;c.globalAlpha=.35;c.beginPath();c.moveTo(X(hx)+.5,T);c.lineTo(X(hx)+.5,T+ph);c.stroke();c.globalAlpha=1}
   const lg=cv.closest(".chartwrap")?.nextElementSibling;
-  if(lg&&lg.classList.contains("legend")){const items=(o.series||[]).concat(o.bars||[]).filter(s=>s.label);
-    lg.innerHTML=items.length>=2||o.legend?items.map(s=>`<span><i class="sw ${s.cls||"s1"}${s.dash?" dash":""}${s.bins?" box":""}"></i>${esc(s.label)}</span>`).join(""):""}
+  if(lg&&lg.classList.contains("legend")){const items=(o.series||[]).concat(o.bars||[],o.points||[]).filter(s=>s.label);
+    lg.innerHTML=items.length>=2||o.legend?items.map(s=>`<span><i class="sw ${s.cls||"s1"}${s.dash?" dash":""}${s.bins||(s.pts&&!s.w&&o.points&&o.points.includes(s))?" box":""}"></i>${esc(s.label)}</span>`).join(""):""}
 }
 function fmtTick(v){const a=Math.abs(v);if(a>=1e6)return r4(v/1e6)+"m";if(a>=1e4)return r4(v/1e3)+"k";return String(r4(v))}
 function wireHover(cv){
@@ -280,8 +286,18 @@ const LABS=[
 ];
 
 function labDone(id){return!!(S.labs&&S.labs[id]&&S.labs[id].done)}
+let LABTAB=(()=>{try{return localStorage.getItem("qd_labtab")||"concepts"}catch(e){return"concepts"}})();
 function renderLabs(){
-  const host=$("#v-labs");const n=LABS.filter(l=>labDone(l.id)).length;
+  const top=$("#v-labs"),tabs=[["concepts","Concept labs"],["options","Options visualiser"],["prob","Probability simulators"]];
+  top.innerHTML=`<div class="subnav" role="tablist" aria-label="Labs sections">${tabs.map(([k,l])=>`<button role="tab" data-lt="${k}" aria-selected="${k===LABTAB}">${l}</button>`).join("")}</div><div id="labpane" class="panel"></div>`;
+  top.querySelectorAll("[data-lt]").forEach(b=>b.onclick=()=>{LABTAB=b.dataset.lt;try{localStorage.setItem("qd_labtab",LABTAB)}catch(e){}renderLabs()});
+  const pane=top.querySelector("#labpane");
+  if(LABTAB==="options"){renderOptions(pane);return}
+  if(LABTAB==="prob"){renderProb(pane);return}
+  renderConceptLabs(pane);
+}
+function renderConceptLabs(host){
+  const n=LABS.filter(l=>labDone(l.id)).length;
   host.innerHTML=`<div class="card stack"><h3>Quant finance labs · ${n} / ${LABS.length} complete</h3><h2>See how it works, then check yourself</h2>
     <p class="muted measure">Each lab is a live simulation. Move the sliders, follow the "Try this" prompts and open "Show the maths" to see what's running. Pass the three-question check (2 out of 3) to complete it.</p>
     <div class="bar"><i style="width:${n/LABS.length*100}%"></i></div></div>
@@ -327,50 +343,33 @@ function playKelly(host){
     host.querySelector("#kr").textContent=`Round ${Math.min(i+1,R)} / ${R}`;drawC();if(i>=R||w<0.01)finish()};
   host.querySelector("#kend").onclick=finish;drawC();
 }
-function playBook(host){
-  const V=ri(30,70),R=12;let i=0,cash=0,inv=0;const log=[];const clues=[];
-  host.innerHTML=`<div class="card ticket"><div class="meta"><span>Order-flow desk · hidden value between 30 and 70</span><span id="br">Round 1 / ${R}</span></div>
-    <p class="muted small">Quote a bid and ask each round. Some traders know the true value and only trade when your price is wrong. The rest trade at random, more often when your spread is tight. Every third round you get a noisy hint. Read the flow, move your quotes and finish with the best P&L.</p>
-    <div class="stats">${stat("Position","0","bi")}${stat("Cash","0.00","bc")}${stat("Hints","none yet","bh")}</div>
-    <div class="mm"><label class="b" for="bbid">Bid<input type="text" id="bbid" inputmode="decimal" autocomplete="off" value="45"></label><label class="a" for="bask">Ask<input type="text" id="bask" inputmode="decimal" autocomplete="off" value="55"></label></div>
-    <div class="row"><button class="btn accent" id="bgo">Quote</button><span class="kbd">Enter to quote</span></div><div id="bmsg" class="small"></div><div class="list" id="blog"></div></div>`;
-  const $h=s=>host.querySelector(s);
-  host.querySelectorAll("input").forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$h("#bgo").click()}}));
-  $h("#bgo").onclick=()=>{const b=parseNum($h("#bbid").value),a=parseNum($h("#bask").value);
-    if(isNaN(b)||isNaN(a)||a<=b){$h("#bmsg").textContent="Enter a bid below your ask.";return}$h("#bmsg").textContent="";
-    const informed=Math.random()<0.45;let side=null;
-    if(informed){if(a<V)side="buy";else if(b>V)side="sell"}else if(Math.random()<clamp(1-(a-b)/16,0.15,1))side=Math.random()<.5?"buy":"sell";
-    if(side==="buy"){inv--;cash+=a}else if(side==="sell"){inv++;cash-=b}
-    i++;if(i%3===0){clues.push(Math.round(V+randn()*6));$h("#bh").textContent=clues.join(", ")}
-    log.unshift(`<div><span>R${i}: ${f2(b)} at ${f2(a)}</span><span class="tabular">${side==="buy"?"someone bought from you":side==="sell"?"someone sold to you":"no trade"}</span></div>`);
-    $h("#blog").innerHTML=log.join("");$h("#bi").textContent=inv;$h("#bc").textContent=f2(cash);$h("#br").textContent=`Round ${Math.min(i+1,R)} / ${R}`;
-    if(i>=R){const pnl=cash+inv*V;endGame(host,"book",Math.round(pnl),`P&L. True value was ${V}: cash ${f2(cash)} + position ${inv} × ${V}.`)}};
-}
-
 /* ---------- public practice log ---------- */
 const OWNER="Chakshu Chopra";
 function streaks(days){
-  const has=k=>days[k]&&(days[k].daily||days[k].n>0);let cur=0;const d=new Date();if(!has(d.toLocaleDateString("en-CA")))d.setDate(d.getDate()-1);
+  const has=k=>days[k]&&(days[k].daily||days[k].n>0||days[k].labs>0||days[k].g>0||days[k].bt>0);let cur=0;const d=new Date();if(!has(d.toLocaleDateString("en-CA")))d.setDate(d.getDate()-1);
   while(has(d.toLocaleDateString("en-CA"))){cur++;d.setDate(d.getDate()-1)}
   let best=0,run=0,prev=null;for(const k of Object.keys(days).filter(has).sort()){run=prev&&(Date.parse(k)-Date.parse(prev))/864e5===1?run+1:1;best=Math.max(best,run);prev=k}
   return{cur,best};
 }
 function publicSnapshot(){
-  const days=Object.fromEntries(Object.entries(S.days).sort().slice(-400).map(([k,v])=>[k,{n:v.n||0,c:v.c||0,daily:!!v.daily,labs:v.labs||0,g:v.g||0,...(v.r?{r:v.r}:{})}]));
+  const days=Object.fromEntries(Object.entries(S.days).sort().slice(-400).map(([k,v])=>[k,{n:v.n||0,c:v.c||0,daily:!!v.daily,labs:v.labs||0,g:v.g||0,bt:v.bt||0,...(v.r?{r:v.r}:{})}]));
+  const dk=(S.games.desk&&S.games.desk.hist)||[];
   return{quantDeskLog:1,owner:OWNER,updated:new Date().toISOString(),ratings:Object.fromEntries(SKILL_ORDER.map(k=>[k,S.ratings[k]])),lv:Object.fromEntries(SKILL_ORDER.map(k=>[k,lvOf(k)])),
     labs:LABS.map(l=>({id:l.id,title:l.title,done:labDone(l.id),t:S.labs[l.id]?.t||null})),units:{done:UNITS.filter(u=>unitDone(u.n)).length,total:UNITS.length},
-    games:Object.fromEntries(Object.entries(S.games).map(([k,v])=>[k,v.best])),days};
+    games:Object.fromEntries(Object.entries(S.games).map(([k,v])=>[k,v.best])),
+    desk:{sessions:dk.length,best:dk.length?S.games.desk.best:null,avg10:dk.length?Math.round(mean(dk.slice(-10).map(h=>h.s))*100)/100:null,hard:dk.filter(h=>h.df==="hard").length},
+    sims:{done:SIMS.filter(s=>simDone(s.id)).length,total:SIMS.length},days};
 }
 function heatmap(days,weeks=26){
   const end=new Date();const start=new Date(end);start.setDate(start.getDate()-(weeks*7-1));
   start.setDate(start.getDate()-((start.getDay()+6)%7));const cells=[];const d=new Date(start);
-  while(d<=end){const k=d.toLocaleDateString("en-CA"),v=days[k]||{};const n=(v.n||0)+(v.labs||0)*3+(v.g||0)*3;
+  while(d<=end){const k=d.toLocaleDateString("en-CA"),v=days[k]||{};const n=(v.n||0)+(v.labs||0)*3+(v.g||0)*3+(v.bt||0)*3;
     cells.push(`<i class="${n>=25?"l3":n>=10?"l2":n>0?"l1":""} ${k===todayKey()?"today":""}" title="${k}: ${v.n||0} questions${v.labs?`, ${v.labs} labs`:""}${v.g?`, ${v.g} games`:""}${v.daily?", daily set done":""}"></i>`);d.setDate(d.getDate()+1)}
   return`<div class="cal" role="img" aria-label="Practice activity over the last ${weeks} weeks">${cells.join("")}</div><div class="calkey muted small"><span>Less</span><i></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><span>More</span></div>`;
 }
 function logHTML(snap,{published}){
   const days=snap.days||{},ks=Object.keys(days).sort();const {cur,best}=streaks(days);
-  const active=ks.filter(k=>days[k].n||days[k].daily||days[k].labs||days[k].g);let n=0,c=0;for(const k of ks){n+=days[k].n;c+=days[k].c}
+  const active=ks.filter(k=>days[k].n||days[k].daily||days[k].labs||days[k].g||days[k].bt);let n=0,c=0;for(const k of ks){n+=days[k].n;c+=days[k].c}
   const recent=active.slice(-10).reverse();const labsDone=(snap.labs||[]).filter(l=>l.done).length;
   return`<div class="card stack"><h3>${published?"Public practice log":"Preview of your log"}</h3><h2>${esc(snap.owner||OWNER)} · quant finance practice</h2>
     <p class="muted small">${published?`Last published ${new Date(snap.updated).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}.`:"This is what visitors will see after you publish."}</p>
@@ -378,8 +377,9 @@ function logHTML(snap,{published}){
     ${heatmap(days)}</div>
     <div class="card stack"><h3>Progress over time</h3><div id="logcharts"></div></div>
     <div class="grid tight">${Object.entries(snap.ratings||{}).map(([k,r])=>{const v=snap.lv&&snap.lv[k]?Number(snap.lv[k]):clamp(1+(r-800)/120,1,5.99),L=clamp(Math.floor(v),1,5);return`<div class="card skill"><div class="top"><h3>${esc(SKILL_NAME[k]||k)}</h3><span class="lvl">L${L} ${LVL_NAME[L]}</span></div><span class="r tabular">${r}</span><div class="bar" title="Progress to the next level"><i style="width:${clamp((L>=5?1:v-L)*100,3,100)}%"></i></div></div>`}).join("")}</div>
-    <div class="card stack"><h3>Recent sessions</h3><div class="list">${recent.length?recent.map(k=>{const v=days[k];return`<div><span>${new Date(k).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}</span><span class="muted tabular small">${[v.n?`${v.n} qs · ${Math.round(v.c/v.n*100)}%`:"",v.daily?"daily set":"",v.labs?`${v.labs} lab${v.labs>1?"s":""}`:"",v.g?`${v.g} game${v.g>1?"s":""}`:""].filter(Boolean).join(" · ")}</span></div>`}).join(""):`<div><span class="muted">No sessions yet.</span></div>`}</div></div>
-    <div class="card stack"><h3>Labs and track</h3><div class="list">${(snap.labs||[]).map(l=>`<div><span>${esc(l.title)}</span><span class="pill ${l.done?"ok":"todo"}">${l.done?"done":"not yet"}</span></div>`).join("")}<div><span>Market-making track units</span><span class="tabular small">${snap.units?`${snap.units.done} / ${snap.units.total}`:"–"}</span></div></div></div>`;
+    <div class="card stack"><h3>Recent sessions</h3><div class="list">${recent.length?recent.map(k=>{const v=days[k];return`<div><span>${new Date(k).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}</span><span class="muted tabular small">${[v.n?`${v.n} qs · ${Math.round(v.c/v.n*100)}%`:"",v.daily?"daily set":"",v.labs?`${v.labs} lab${v.labs>1?"s":""}`:"",v.g?`${v.g} game${v.g>1?"s":""}`:"",v.bt?"backtesting":""].filter(Boolean).join(" · ")}</span></div>`}).join(""):`<div><span class="muted">No sessions yet.</span></div>`}</div></div>
+    <div class="card stack"><h3>Labs and track</h3><div class="list">${(snap.labs||[]).map(l=>`<div><span>${esc(l.title)}</span><span class="pill ${l.done?"ok":"todo"}">${l.done?"done":"not yet"}</span></div>`).join("")}<div><span>Market-making track units</span><span class="tabular small">${snap.units?`${snap.units.done} / ${snap.units.total}`:"–"}</span></div>${snap.sims?`<div><span>Probability puzzles solved by simulation</span><span class="tabular small">${snap.sims.done} / ${snap.sims.total}</span></div>`:""}</div></div>
+    ${snap.desk&&snap.desk.sessions?`<div class="card stack"><h3>Market-making simulator</h3><div class="stats">${stat("Sessions traded",String(snap.desk.sessions))}${stat("Best P&L",f2(snap.desk.best))}${stat("Average P&L, last 10",f2(snap.desk.avg10))}${stat("Hard-mode sessions",String(snap.desk.hard))}</div></div>`:""}`;
 }
 let PUBLISHED=null;
 async function loadPublished(){try{const r=await fetch("progress.json",{cache:"no-store"});if(r.ok){const j=await r.json();if(j&&j.quantDeskLog)PUBLISHED=j}}catch(e){}}

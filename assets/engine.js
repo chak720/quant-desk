@@ -217,7 +217,7 @@ const SKILL_NAME={...Object.fromEntries(Object.entries(SKILLS).map(([k,v])=>[k,v
 const LVL_NAME=["","Warm-up","Foundation","Interview","Hard","Desk-ready"];
 
 /* ---------- state ---------- */
-function blankState(){return{v:1,ratings:Object.fromEntries(SKILL_ORDER.map(k=>[k,950])),subs:{},mistakes:[],days:{},games:{sprint:{best:0,hist:[]},mm:{best:0,hist:[]},ladder:{best:0,hist:[]},kelly:{best:0,hist:[]},book:{best:0,hist:[]}},labs:{},lv:Object.fromEntries(SKILL_ORDER.map(k=>[k,1.5])),updated:null}}
+function blankState(){return{v:1,ratings:Object.fromEntries(SKILL_ORDER.map(k=>[k,950])),subs:{},mistakes:[],days:{},games:{sprint:{best:0,hist:[]},mm:{best:0,hist:[]},ladder:{best:0,hist:[]},kelly:{best:0,hist:[]},book:{best:0,hist:[]},desk:{best:0,hist:[]}},labs:{},lv:Object.fromEntries(SKILL_ORDER.map(k=>[k,1.5])),updated:null}}
 let S=blankState();
 let DAY={date:todayKey(),attempts:[]};
 let db=null,storeMode="none",PLAN=null,READY=false;
@@ -340,7 +340,7 @@ function lsSave(){S.updated=new Date().toISOString();
 function mergeState(x){if(!x)return;const b=blankState();S={...b,...x,ratings:{...b.ratings,...(x.ratings||{})},games:{...b.games,...(x.games||{})},labs:{...(x.labs||{})},lv:{...b.lv,...(x.lv||Object.fromEntries(Object.entries(x.ratings||{}).map(([k,r])=>[k,clamp(1+(r-800)/120,1,5.99)])))}}}
 /* per-day activity counters beyond questions: labs opened/finished, games played */
 function dayRec(){return S.days[todayKey()]||(S.days[todayKey()]={n:0,c:0,daily:false})}
-function bumpDay(k){const d=dayRec();d[k]=(d[k]||0)+1;queueSave()}
+function bumpDay(k){const d=dayRec();d[k]=(d[k]||0)+1;queueSave();if(typeof renderStrip==="function")renderStrip()}
 function unitDone(n){const u=(S.units||{})[n];const U=UNITS.find(x=>x.n===n);return!!u&&u.a>=Math.min(4,U.questions.length)&&u.c/u.a>=0.8}
 function nextUnit(){return UNITS.find(u=>!unitDone(u.n))||null}
 function unitPlan(U){return{id:"unit-"+U.n+"-"+todayKey(),unit:U.n,fromUnit:true,lesson:{title:`Unit ${U.n}: ${U.title}`,sections:U.sections,takeaways:U.takeaways},questions:U.questions.map(q=>({...q,unit:U.n}))}}

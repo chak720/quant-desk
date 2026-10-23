@@ -27,9 +27,11 @@
   </header>
   <nav aria-label="Sections">
     <span id="navind" aria-hidden="true"></span>
+    <button data-v="daily" aria-selected="true">Daily</button>
     <button data-v="learn" aria-selected="false">Learn</button>
     <button data-v="labs" aria-selected="false">Labs</button>
-    <button data-v="daily" aria-selected="true">Daily</button>
+    <button data-v="desk" aria-selected="false">Desk</button>
+    <button data-v="backtest" aria-selected="false">Backtest</button>
     <button data-v="games" aria-selected="false">Games</button>
     <button data-v="profile" aria-selected="false">Profile</button>
     <button data-v="log" aria-selected="false">Log</button>
@@ -37,6 +39,8 @@
   <main>
     <section class="panel" id="v-learn" hidden></section>
     <section class="panel" id="v-labs" hidden></section>
+    <section class="panel" id="v-desk" hidden></section>
+    <section class="panel" id="v-backtest" hidden></section>
     <section class="panel" id="v-daily"><div class="card"><p class="muted">Loading…</p></div></section>
     <section class="panel" id="v-games" hidden></section>
     <section class="panel" id="v-profile" hidden><div id="tab-progress" class="panel"></div></section>
@@ -48,6 +52,9 @@
 <script src="assets/lessons.js"></script>
 <script src="assets/engine.js"></script>
 <script src="assets/labs.js"></script>
+<script src="assets/sims.js"></script>
+<script src="assets/desk.js"></script>
+<script src="assets/backtest.js"></script>
 <script src="assets/app.js"></script>
 </body>
 </html>

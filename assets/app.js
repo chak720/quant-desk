@@ -61,7 +61,7 @@ const GAMES=[
   {k:"mm",name:"Market maker",d:"Five estimates. Quote a bid and ask around the true value. Tight and right scores most.",fmt:b=>b+"/500",play:h=>playMM(h)},
   {k:"ladder",name:"Probability ladder",d:"Probability, EV and stats. Every two correct answers steps the level up. Three misses and you're out.",fmt:b=>b,play:h=>playLadder(h)},
   {k:"kelly",name:"Kelly casino",d:"40 flips of a biased coin. Size each bet and try to beat a bot that bets exactly Kelly.",fmt:b=>"£"+b,play:h=>playKelly(h)},
-  {k:"book",name:"Order-flow desk",d:"Make markets on a hidden value against informed and random traders. Read the flow, manage your position.",fmt:b=>b,play:h=>playBook(h)},
+  {k:"desk",name:"Market-making simulator",d:"Quote dice, card and stock markets against informed and random traders. Opens the Desk tab.",fmt:b=>f2(b),play:()=>go("desk")},
 ];
 function renderGames(){
   const host=$("#v-games");
@@ -127,7 +127,7 @@ function statsSummary(){
 
 /* ---------- views ---------- */
 let sampleFn=null;function explain(){}
-const VIEWS=["learn","labs","daily","games","profile","log"];
+const VIEWS=["daily","learn","labs","desk","backtest","games","profile","log"];
 function renderStrip(){
   const streak=streaks(S.days).cur;
   bump("#sStreak",streak);bump("#sToday",S.days[todayKey()]?.n||0);
@@ -228,7 +228,7 @@ function go(v,push=true,rerender=true){
   if(!VIEWS.includes(v))v="daily";
   document.querySelectorAll("nav button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.v===v)));
   VIEWS.forEach(k=>{const el=$("#v-"+k);const show=k===v;if(show&&el.hidden){el.hidden=false;el.classList.remove("vin");void el.offsetWidth;el.classList.add("vin")}else if(!show)el.hidden=true});
-  if(v==="daily"&&rerender&&!$("#runhost")?.innerHTML.trim())renderDaily();if(v==="profile")renderProfile();if(v==="learn")renderLearn();if(v==="labs"&&rerender&&!$("#v-labs").innerHTML)renderLabs();if(v==="log"&&rerender)renderLog();
+  if(v==="daily"&&rerender&&!$("#runhost")?.innerHTML.trim())renderDaily();if(v==="profile")renderProfile();if(v==="learn")renderLearn();if(v==="labs"&&rerender&&!$("#v-labs").innerHTML)renderLabs();if(v==="log"&&rerender)renderLog();if(v==="desk"&&!$("#v-desk").innerHTML)renderDesk();if(v==="backtest"&&!$("#v-backtest").innerHTML)renderBacktest();
   moveIndicator();if(push)try{history.replaceState(null,"","#"+v)}catch(e){}
 }
 function renderAll(){renderStrip();renderDaily();renderLearn();renderLabs();renderGames();renderProfile()}
