@@ -92,6 +92,37 @@ function wireSliders(host,ids,fmts,onchange){
 const stat=(k,v,id)=>`<div class="stat"><span class="k">${esc(k)}</span><span class="v tabular" ${id?`id="${id}"`:""}>${v}</span></div>`;
 
 /* ---------- labs ---------- */
+/* Lab checks are generated, so a retry gets new numbers */
+const LQ={
+ compound:()=>{const x=pick([10,20,25,30,40,50]),mu=ri(6,15),sg=pick([20,30,40]),a=ri(5,20)/100,b=ri(1,9)/100;return[
+  {q:`A stock goes up ${x}% then down ${x}%. Total return in %?`,ans:((1+x/100)*(1-x/100)-1)*100,pct:true,tol:{abs:0.05},sol:`${1+x/100} × ${1-x/100} = ${r4((1+x/100)*(1-x/100))} → ${r4(((1+x/100)*(1-x/100)-1)*100)}%`},
+  {q:`Mean annual return ${mu}%, volatility ${sg}%. Approximate growth rate of the median investor, in %?`,ans:mu-sg*sg/200,pct:true,tol:{abs:0.2},sol:`μ − σ²/2 = ${mu}% − ${r4(sg*sg/200)}% = ${r4(mu-sg*sg/200)}%`},
+  {q:`Log returns of +${a} and −${b} over two days. Total log return (decimal)?`,ans:a-b,tol:{abs:0.001},sol:`Log returns add: ${a} − ${b} = ${r4(a-b)}`}]},
+ walk:()=>{const n=pick([100,225,400,625,900]),d=pick([0.5,1,1.5,2]),k=pick([4,9,16,25]),z=pick([[1,0.3173],[2,0.0455],[3,0.0027]]);return[
+  {q:`A random walk of ±1 steps runs for ${n} steps. Standard deviation of the final position?`,ans:Math.sqrt(n),tol:{abs:0.01},sol:`√${n} = ${Math.sqrt(n)}`},
+  {q:`Daily volatility is ${d}%. Volatility over ${k} trading days, in %?`,ans:d*Math.sqrt(k),pct:true,tol:{abs:0.05},sol:`${d}% × √${k} = ${r4(d*Math.sqrt(k))}%`},
+  {q:`About what fraction of long random walks end more than ${z[0]} standard deviation${z[0]>1?"s":""} from the start? (decimal)`,ans:z[1],tol:{abs:z[0]===3?0.002:0.01},sol:`Normal approximation: P(|Z| > ${z[0]}) ≈ ${z[1]}`}]},
+ sharpe:()=>{const m=ri(6,20),rf=ri(0,5),v=ri(5,20),y=pick([1,4,9,16,25]),dm=pick([0.02,0.04,0.05,0.08]),ds=pick([0.8,1,1.5]);return[
+  {q:`A strategy returns ${m}% a year with ${v}% volatility. Risk-free rate is ${rf}%. Sharpe ratio?`,ans:(m-rf)/v,tol:{abs:0.01},sol:`(${m} − ${rf}) / ${v} = ${r4((m-rf)/v)}`},
+  {q:`A zero-edge strategy is backtested over ${y} year${y>1?"s":""}. Roughly what's the standard error of its measured Sharpe?`,ans:1/Math.sqrt(y),tol:{abs:0.02},sol:`≈ 1/√years = 1/√${y} = ${r4(1/Math.sqrt(y))}`},
+  {q:`Daily mean return ${dm}%, daily SD ${ds}%. Annualised Sharpe (252 days, zero risk-free)?`,ans:dm/ds*Math.sqrt(252),tol:{abs:0.03},sol:`(${dm}/${ds}) × √252 ≈ ${r4(dm/ds*Math.sqrt(252))}`}]},
+ kelly:()=>{const p=pick([0.53,0.55,0.6,0.65]),p2=pick([0.35,0.4,0.45]),b=pick([2,3]),f=pick([0.1,0.15,0.2,0.25]);return[
+  {q:`A coin wins ${pctf(p,0)} of the time at even money. Kelly fraction (decimal)?`,ans:2*p-1,tol:{abs:0.002},sol:`f* = 2p − 1 = ${r4(2*p-1)}`},
+  {q:`A bet wins ${pctf(p2,0)} of the time and pays ${b}:1. Kelly fraction (decimal)?`,ans:p2-(1-p2)/b,tol:{abs:0.003},sol:`f* = p − q/b = ${p2} − ${r4(1-p2)}/${b} = ${r4(p2-(1-p2)/b)}${p2-(1-p2)/b<=0?": negative, so don't bet":""}`},
+  {q:`Kelly says bet ${pctf(f,0)}. At roughly what fraction does your long-run growth rate fall to zero? (decimal)`,ans:2*f,tol:{abs:0.03},sol:`About twice Kelly: ${2*f}`}]},
+ options:()=>{const K=ri(9,11)*10,S=K+ri(-20,20),S2=ri(90,110),K2=pick([90,95,100,105,110]),C=ri(4,15),Sx=pick([100,200,50]),sg=pick([0.2,0.3,0.4]);return[
+  {q:`A ${K}-strike put expires with the stock at ${S}. Payoff?`,ans:Math.max(K-S,0),tol:{abs:0.01},sol:`max(${K} − ${S}, 0) = ${Math.max(K-S,0)}`},
+  {q:`Zero rates. Stock ${S2}, a ${K2}-strike call costs ${C}. What does the ${K2}-strike put cost?`,ans:C-S2+K2,tol:{abs:0.01},sol:`C − P = S − K → P = ${C} − ${S2} + ${K2} = ${C-S2+K2}`},
+  {q:`Rule of thumb: at-the-money option, S = ${Sx}, σ = ${pctf(sg,0)}, T = 1 year. Approximate price?`,ans:0.4*Sx*sg,tol:{rel:0.04},sol:`0.4 × ${Sx} × ${sg} × √1 = ${r4(0.4*Sx*sg)}`}]},
+ diversify:()=>{const s=pick([10,20,30,40]),rho=pick([-0.5,0,0.25,0.5]),N=pick([4,9,16,25]),s2=pick([20,30]),rf=pick([0.04,0.09,0.16,0.25]);return[
+  {q:`Two assets, each ${s}% vol, correlation ${rho}, held 50/50. Portfolio volatility in %?`,ans:s*Math.sqrt((1+rho)/2),pct:true,tol:{abs:0.1},sol:`${s} × √((1 + ${rho})/2) = ${r4(s*Math.sqrt((1+rho)/2))}%`},
+  {q:`${N} uncorrelated assets, each ${s2}% vol, equally weighted. Portfolio volatility in %?`,ans:s2/Math.sqrt(N),pct:true,tol:{abs:0.1},sol:`σ/√N = ${s2}/${Math.sqrt(N)} = ${r4(s2/Math.sqrt(N))}%`},
+  {q:`Many assets, each ${s2}% vol, average correlation ${rf}. Lowest achievable portfolio volatility in %?`,ans:s2*Math.sqrt(rf),pct:true,tol:{abs:0.1},sol:`σ√ρ = ${s2} × ${Math.sqrt(rf)} = ${r4(s2*Math.sqrt(rf))}%`}]},
+ book:()=>{const m=ri(20,200),h=pick([0.01,0.02,0.05]),q1=ri(1,5)*100,q2=ri(1,5)*100,p1=ri(1000,5000)/100,mid=ri(20,80),cost=pick([0.01,0.02,0.05,0.1]);return[
+  {q:`Best bid ${r4(m-h)}, best ask ${r4(m+h)}. What's the mid?`,ans:m,tol:{abs:0.001},sol:`(${r4(m-h)} + ${r4(m+h)}) / 2 = ${m}`},
+  {q:`Asks: ${q1} shares at ${p1.toFixed(2)}, ${q2} at ${(p1+0.02).toFixed(2)}. You buy ${q1+q2} at market. Average price?`,ans:(q1*p1+q2*(p1+0.02))/(q1+q2),tol:{abs:0.0005},sol:`(${q1}·${p1.toFixed(2)} + ${q2}·${(p1+0.02).toFixed(2)}) / ${q1+q2} = ${r4((q1*p1+q2*(p1+0.02))/(q1+q2))}`},
+  {q:`Mid is ${mid}.00 and your average buy fill is ${(mid+cost).toFixed(2)}. Cost in basis points?`,ans:cost/mid*1e4,tol:{abs:0.05},sol:`${cost} / ${mid} × 10,000 = ${r4(cost/mid*1e4)} bps`}]},
+};
 const LABS=[
 {id:"compound",title:"Returns, compounding and volatility drag",
  blurb:"Why a stock averaging +10% a year can still leave most investors behind.",
@@ -116,10 +147,7 @@ const LABS=[
   const get=wireSliders(host,["mu","sig","yrs"],[x=>pctf(x),x=>pctf(x,0),null],draw);
   host.querySelector("#cre").onclick=()=>draw(get());draw(get());
  },
- quiz:[
-  {q:"A stock goes up 20% then down 20%. Total return in %?",ans:-4,pct:true,tol:{abs:0.05},sol:"1.2 × 0.8 = 0.96 → −4%"},
-  {q:"Mean annual return 12%, volatility 40%. Approximate growth rate of the median investor, in %?",ans:4,pct:true,tol:{abs:0.2},sol:"μ − σ²/2 = 12% − 0.16/2 = 12% − 8% = 4%"},
-  {q:"Log returns of +0.10 and −0.05 over two days. Total log return (decimal)?",ans:0.05,tol:{abs:0.001},sol:"Log returns add: 0.10 − 0.05 = 0.05"}]},
+ quiz:LQ.compound},
 
 {id:"walk",title:"Random walks and the √t rule",
  blurb:"Why risk grows with the square root of time, and what a random price looks like.",
@@ -143,10 +171,7 @@ const LABS=[
     host.querySelector("#wst").innerHTML=stat("√n",f2(Math.sqrt(ws)))+stat("Measured SD of final positions",f2(sd(fin)))+stat("Ended within ±√n",pctf(inside,0)+" (theory 68%)");};
   const get=wireSliders(host,["ws","wn"],[null,null],draw);host.querySelector("#wre").onclick=()=>draw(get());draw(get());
  },
- quiz:[
-  {q:"A random walk of ±1 steps runs for 400 steps. Standard deviation of the final position?",ans:20,tol:{abs:0.01},sol:"√400 = 20"},
-  {q:"Daily volatility is 1%. Volatility over 16 trading days, in %?",ans:4,pct:true,tol:{abs:0.05},sol:"1% × √16 = 4%"},
-  {q:"About what fraction of random walks end more than 2 SDs from the start? (decimal)",ans:0.05,tol:{abs:0.006},sol:"Normal approximation: P(|Z| > 2) ≈ 0.0455, about 5%"}]},
+ quiz:LQ.walk},
 
 {id:"sharpe",title:"Sharpe ratios and backtest luck",
  blurb:"Test enough strategies with no edge and one will look brilliant. This is how backtests lie.",
@@ -170,10 +195,7 @@ const LABS=[
     host.querySelector("#sst").innerHTML=stat("Best measured Sharpe",f2(sharpes[bi]))+stat("Theory for the best",f2(Math.sqrt(2*Math.log(Math.max(sn,1.0001)))/Math.sqrt(sy)))+stat("Standard error of one Sharpe",f2(1/Math.sqrt(sy)))+stat("Strategies with Sharpe > 1",String(sharpes.filter(s=>s>1).length));};
   const get=wireSliders(host,["sn","sy"],[null,null],draw);host.querySelector("#sre").onclick=()=>draw(get());draw(get());
  },
- quiz:[
-  {q:"A strategy returns 15% a year with 10% volatility. Risk-free rate is 3%. Sharpe ratio?",ans:1.2,tol:{abs:0.01},sol:"(15 − 3) / 10 = 1.2"},
-  {q:"A zero-edge strategy is backtested over 4 years. Roughly what's the standard error of its measured Sharpe?",ans:0.5,tol:{abs:0.02},sol:"≈ 1/√years = 1/√4 = 0.5"},
-  {q:"Daily mean return 0.05%, daily SD 1%. Annualised Sharpe (252 days, zero risk-free)?",ans:0.05*Math.sqrt(252),tol:{abs:0.03},sol:"(0.05/1) × √252 ≈ 0.05 × 15.87 ≈ 0.79"}]},
+ quiz:LQ.sharpe},
 
 {id:"kelly",title:"Kelly criterion and position sizing",
  blurb:"Having an edge isn't enough. Bet too big and you still go broke.",
@@ -197,10 +219,7 @@ const LABS=[
     host.querySelector("#kst").innerHTML=stat("Kelly fraction",pctf(ks,0))+stat("Your growth per bet",(g(kf)*100).toFixed(2)+"%")+stat("Median wealth after 200 bets","×"+f2(quantile(fin,0.5)))+stat("Paths down more than 90%",pctf(fin.filter(w=>w<0.1).length/N,0));};
   const get=wireSliders(host,["kp","kf"],[x=>pctf(x,0),x=>pctf(x,0)],draw);host.querySelector("#kre").onclick=()=>draw(get());draw(get());
  },
- quiz:[
-  {q:"A coin wins 55% of the time at even money. Kelly fraction (decimal)?",ans:0.1,tol:{abs:0.002},sol:"f* = 2p − 1 = 0.10"},
-  {q:"A bet wins 40% of the time and pays 2:1. Kelly fraction (decimal)?",ans:0.1,tol:{abs:0.002},sol:"f* = p − q/b = 0.4 − 0.6/2 = 0.10"},
-  {q:"Kelly says bet 20%. At roughly what fraction does your long-run growth rate fall to zero? (decimal)",ans:0.4,tol:{abs:0.03},sol:"About twice Kelly: 0.40"}]},
+ quiz:LQ.kelly},
 
 {id:"options",title:"Options: payoffs, pricing and Greeks",
  blurb:"Build option positions, see their payoff, and watch Black–Scholes value them before expiry.",
@@ -226,10 +245,7 @@ const LABS=[
   const get=wireSliders(host,["oS","oK","ov","ot"],[null,null,x=>pctf(x,0),null],draw);
   host.querySelectorAll("[data-st]").forEach(b=>b.onclick=()=>{cur=b.dataset.st;host.querySelectorAll("[data-st]").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));draw(get())});draw(get());
  },
- quiz:[
-  {q:"A 100-strike put expires with the stock at 87. Payoff?",ans:13,tol:{abs:0.01},sol:"max(100 − 87, 0) = 13"},
-  {q:"Zero rates. Stock 100, a 95-strike call costs 8. What does the 95-strike put cost?",ans:3,tol:{abs:0.01},sol:"C − P = S − K → P = 8 − (100 − 95) = 3"},
-  {q:"Rule of thumb: at-the-money option, S = 200, σ = 20%, T = 1 year. Approximate price?",ans:16,tol:{abs:0.5},sol:"0.4 × 200 × 0.2 × √1 = 16 (Black–Scholes gives 15.9)"}]},
+ quiz:LQ.options},
 
 {id:"diversify",title:"Diversification and correlation",
  blurb:"Why combining risky assets can lower risk, and why correlation decides how much.",
@@ -251,10 +267,7 @@ const LABS=[
     host.querySelector("#dst").innerHTML=stat("Asset A","10% return, 25% vol")+stat("Asset B","5% return, 12% vol")+stat("Your mix",`${pctf(pm(dw))} return, ${pctf(pv(dw))} vol`)+stat("Lowest-risk mix",`${pctf(mv,0)} in A → ${pctf(pv(mv))} vol`);};
   const get=wireSliders(host,["dr","dw"],[x=>f2(x),x=>pctf(x,0)],draw);draw(get());
  },
- quiz:[
-  {q:"Two assets, each 20% vol, correlation 0, held 50/50. Portfolio volatility in %?",ans:20/Math.SQRT2,pct:true,tol:{abs:0.1},sol:"20 × √(½) ≈ 14.1%"},
-  {q:"Two assets, each 30% vol, correlation −1, held 50/50. Portfolio volatility in %?",ans:0,pct:true,tol:{abs:0.05},sol:"Perfectly offsetting: σ√((1+ρ)/2) = 0"},
-  {q:"Many assets, each 20% vol, average correlation 0.25. Lowest achievable portfolio volatility in %?",ans:10,pct:true,tol:{abs:0.1},sol:"σ√ρ = 20 × 0.5 = 10%"}]},
+ quiz:LQ.diversify},
 
 {id:"book",title:"Order books, spreads and market impact",
  blurb:"How a trade actually gets filled, and why big orders cost more than the quoted price.",
@@ -279,10 +292,7 @@ const LABS=[
     host.querySelector("#btb").innerHTML=`<table><caption class="sr">Ask side of the book</caption><thead><tr><th>Ask price</th><th>Size</th><th>You take</th></tr></thead><tbody>${asks.slice(0,8).map((a,i)=>`<tr class="${fills[i]?"hit":""}"><td>${a.p.toFixed(2)}</td><td>${a.q}</td><td>${fills[i]||""}</td></tr>`).join("")}</tbody></table>`;};
   const get=wireSliders(host,["bq"],[null],draw);host.querySelector("#bre").onclick=()=>{mk();draw(get())};mk();draw(get());
  },
- quiz:[
-  {q:"Best bid 99.96, best ask 100.04. What's the mid?",ans:100,tol:{abs:0.001},sol:"(99.96 + 100.04) / 2 = 100.00"},
-  {q:"Asks: 200 shares at 10.00, 300 at 10.02. You buy 500 at market. Average price?",ans:10.012,tol:{abs:0.0005},sol:"(200·10.00 + 300·10.02) / 500 = 10.012"},
-  {q:"Mid is 50.00 and your average buy fill is 50.05. Cost in basis points?",ans:10,tol:{abs:0.05},sol:"0.05 / 50 × 10,000 = 10 bps"}]},
+ quiz:LQ.book},
 ];
 
 function labDone(id){return!!(S.labs&&S.labs[id]&&S.labs[id].done)}
@@ -316,7 +326,7 @@ function buildLab(lab,body){
     <div class="row"><button class="btn accent" data-check>Check yourself · 3 questions</button>${labDone(lab.id)?`<span class="pill ok">passed</span>`:""}</div><div class="uhost"></div>`;
   lab.render(body.querySelector(".demo"));
   body.querySelector("[data-check]").onclick=()=>{const uh=body.querySelector(".uhost");let right=0;
-    const qs=lab.quiz.map(q=>planQ({skill:"fin",label:lab.title.split(/[,:]/)[0],L:3,secs:60,...q})).filter(Boolean);
+    const qs=lab.quiz().map(q=>planQ({skill:"fin",label:lab.title.split(/[,:]/)[0],L:3,secs:60,...q})).filter(Boolean);
     runner(uh,{questions:qs,title:"Lab check",onAnswer:(q,ok)=>{if(ok)right++},onDone:items=>{
       const pass=right>=2;const rec=S.labs[lab.id]||(S.labs[lab.id]={done:false,best:0});rec.best=Math.max(rec.best,right);if(pass&&!rec.done){rec.done=true;rec.t=todayKey()}queueSave();
       uh.innerHTML=`<div class="card stack qin"><h3>Lab check</h3><div class="big tabular">${right}/3</div><p class="muted">${pass?"Lab complete. It now counts on your public log.":"Two out of three completes the lab. Play with the demo again, then retry."}</p>${reviewHTML(items,{title:"Your feedback",drill:false})}<div class="row"><button class="btn" id="lb">Back to labs</button></div></div>`;

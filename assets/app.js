@@ -13,12 +13,12 @@ function runner(host,{questions,next,onDone,title,showProgress=true,onAnswer,end
     start=performance.now();clearInterval(tick);const tgt=targetSecs(q);
     const total=questions?questions.length:null;
     host.innerHTML=`<div class="card ticket qin">
-      <div class="meta"><span>${esc(title||"")}${total?` · ${i+1} / ${total}`:""}</span><span>${esc(SKILL_NAME[q.skill])} · ${esc(q.label||(q.mm?"make a market":SKILLS[q.skill].subs[q.sub].label))} · L${q.L}${q.review?" · review":""}</span></div>
+      <div class="meta"><span>${esc(title||"")}${total?` · ${i+1} / ${total}`:""}</span><span>${esc(SKILL_NAME[q.skill])} · ${esc(q.label||SKILLS[q.skill]?.subs[q.sub]?.label||"question")} · L${q.L}${q.review?" · review":""}</span></div>
       ${showProgress&&total?`<div class="progressbar"><i style="width:${Math.max(0,i-1)/total*100}%" data-w="${i/total*100}"></i></div>`:""}
       <div class="row" style="justify-content:space-between;gap:8px"><span class="kbd">Target <b style="color:var(--ink)">${tgt}s</b> · interview pace</span><span class="tabular" id="qclock" style="font:600 14px var(--mono)">0s</span></div>
       <div class="q">${esc(q.q)}</div>
       ${q.mm?`<div class="mm"><label class="b" for="bid">Bid<input type="text" id="bid" inputmode="decimal" autocomplete="off"></label><label class="a" for="ask">Ask<input type="text" id="ask" inputmode="decimal" autocomplete="off"></label></div>
-        <p class="muted" style="font-size:13px">Quote a range you think contains the true value. Tighter scores more, but a miss scores zero.</p>`
+        <p class="muted" style="font-size:13px">${q.quote?"Fair value must be inside your market. Centred and about one standard deviation wide scores best.":"Quote a range you're confident contains the exact value. Tighter scores more, but a miss scores zero."}</p>`
       :`<input type="text" id="ans" inputmode="decimal" autocomplete="off" placeholder="${q.pct?"Answer in %, e.g. 12.5":"Answer: 1/6, 0.167 or 16.7%"}">`}
       <div class="row"><button class="btn" id="submit">Submit</button><button class="btn ghost" id="skip">I don't know</button><span class="kbd">Enter to submit</span>${endable&&items.length?`<button class="btn ghost chip endbtn" id="endrev">End and review</button>`:""}</div>
       <div id="fbhost"></div></div>`;
@@ -36,9 +36,9 @@ function runner(host,{questions,next,onDone,title,showProgress=true,onAnswer,end
     const q=current();if(host.querySelector("#submit")?.disabled)return;clearInterval(tick);const ms=Math.round(performance.now()-start);const tgt=targetSecs(q);
     let ok,given,score=0,extra="";
     if(q.mm){const b=parseNum(host.querySelector("#bid").value),a=parseNum(host.querySelector("#ask").value);
-      if(!skipped&&(isNaN(b)||isNaN(a)||a<b||b<=0)){flash("Enter a positive bid and an ask at or above it.");return}
-      score=skipped?0:mmScore(b,a,q.ans);ok=score>0;given=skipped?"skip":`${b}–${a}`;
-      extra=ok?`Inside your market. Width ×${r4(a/b)} → ${score} pts.`:(skipped?"":`True value was outside ${fmt(b)}–${fmt(a)}.`);
+      if(!skipped&&(isNaN(b)||isNaN(a)||a<=b||b<(q.quote?0:1e-9))){flash(q.quote?"Enter a bid below your ask.":"Enter a positive bid below your ask.");return}
+      score=skipped?0:q.quote?quoteScore(b,a,q.fv,q.sd):mmScore(b,a,q.ans);ok=q.quote?score>=50:score>0;given=skipped?"skip":`${b}–${a}`;
+      extra=skipped?"":q.quote?(score>0?`Fair value is inside your market. Width ${((a-b)/Math.max(q.sd,0.25)).toLocaleString("en-GB",{maximumFractionDigits:1})} standard deviations, mid ${Math.abs((a+b)/2-q.fv).toLocaleString("en-GB",{maximumFractionDigits:2})} from fair value → ${score} pts.${score<50?" Too wide: aim for about one standard deviation.":""}`:`Fair value ${r4(q.fv)} is outside ${fmt(b)}–${fmt(a)}: an informed trader would pick you off.`):(ok?`Inside your market. Width ×${r4(a/b)} → ${score} pts.`:`The value was outside ${fmt(b)}–${fmt(a)}.`);
     }else{given=skipped?"skip":host.querySelector("#ans").value;const v=parseNum(given);
       if(!skipped&&isNaN(v)){flash("Enter a number, a fraction like 3/8, or a percentage.");return}
       ok=!skipped&&close(q.pct&&/%/.test(given)?v*100:v,q.ans,q.tol||{abs:1e-6,rel:1e-6});}
@@ -46,7 +46,7 @@ function runner(host,{questions,next,onDone,title,showProgress=true,onAnswer,end
     host.querySelectorAll("input,#submit,#skip").forEach(el=>el.disabled=true);
     const card=host.querySelector(".ticket");card.classList.remove("qin");card.classList.add(ok?"good":"shake");
     const fb=host.querySelector("#fbhost");
-    fb.innerHTML=`<div class="fb ${ok?"ok":"bad"}"><span class="verdict">${q.mm?(ok?`${score} / 100`:"0 / 100"):(ok?"Correct":"Not quite")} <span class="muted" style="font-weight:400">· ${(ms/1000).toFixed(1)}s of ${tgt}s target${ms>tgt*1000?" (over)":""}</span></span>
+    fb.innerHTML=`<div class="fb ${ok?"ok":"bad"}"><span class="verdict">${q.mm?`${score} / 100`:(ok?"Correct":"Not quite")} <span class="muted" style="font-weight:400">· ${(ms/1000).toFixed(1)}s of ${tgt}s target${ms>tgt*1000?" (over)":""}</span></span>
       ${extra?`<span>${esc(extra)}</span>`:""}
       <span class="muted">Answer: <span class="tabular" style="font-family:var(--mono)">${esc(fmt(q.ans))}</span></span>
       <div class="sol">${esc(q.sol)}</div>${q.src?`<span class="muted" style="font-size:12.5px">Source: ${/^https?:\/\//.test(q.src)?`<a href="${esc(q.src)}" target="_blank" rel="noopener" style="color:var(--accent)">${esc(q.src.replace(/^https?:\/\/(www\.)?/,"").slice(0,60))}</a>`:esc(q.src)}</span>`:""}</div>
@@ -62,7 +62,7 @@ function runner(host,{questions,next,onDone,title,showProgress=true,onAnswer,end
 
 const GAMES=[
   {k:"sprint",name:"Arithmetic sprint",d:"120 seconds. Answers check as you type. Ranges grow with your mental maths rating.",fmt:b=>b,play:h=>playSprint(h)},
-  {k:"mm",name:"Market maker",d:"Five estimates. Quote a bid and ask around the true value. Tight and right scores most.",fmt:b=>b+"/500",play:h=>playMM(h)},
+  {k:"mm",name:"Market maker",d:"Five markets on dice, card and coin contracts and on numbers you can calculate. Centred and tight scores most.",fmt:b=>b+"/500",play:h=>playMM(h)},
   {k:"ladder",name:"Probability ladder",d:"Probability, EV and stats. Every two correct answers steps the level up. Three misses and you're out.",fmt:b=>b,play:h=>playLadder(h)},
   {k:"kelly",name:"Kelly casino",d:"40 flips of a biased coin. Size each bet and try to beat a bot that bets exactly Kelly.",fmt:b=>"£"+b,play:h=>playKelly(h)},
   {k:"desk",name:"Market-making simulator",d:"Quote dice, card and stock markets against informed and random traders. Opens the Desk tab.",fmt:b=>f2(b),play:()=>go("desk")},
@@ -101,10 +101,10 @@ function playSprint(host){
   host.querySelector("#sstop").onclick=finish;
 }
 function playMM(host){
-  const pool=[...FERMI].sort(()=>Math.random()-.5).slice(0,5).map(f=>({skill:"mm",sub:"fermi",L:3,q:f[0],ans:f[1],mm:true,sol:`True value: ${fmt(f[1])}`}));let total=0;
+  const L=Math.max(2,levelFor("mm")),pool=[makeQ("mm","quote",L),makeQ("mm","quote",L),makeQ("mm","calc",L),makeQ("mm","quote",Math.min(5,L+1)),makeQ("mm","calc",L)].map(q=>({...q,noStair:true}));let total=0;
   runner(host,{questions:pool,title:"Market maker",onAnswer:(q,ok,s)=>{total+=s},onDone:items=>{const miss=items.filter(x=>!x.ok).length,notes=[`Average ${Math.round(total/Math.max(1,items.length))} points a market.`];
-    if(miss>=2)notes.push(`${miss} of your markets missed the true value. Widen when you're unsure: a wide market that's right scores more than a tight one that's wrong.`);
-    else if(total/Math.max(1,items.length)<55)notes.push("You were right but wide. Anchor on a fact you know and tighten: score falls with the ratio ask ÷ bid.");
+    if(miss>=2)notes.push(`${miss} of your markets missed. Work out fair value first and make sure it sits inside your quote: a wide market that contains it beats a tight one that doesn't.`);
+    else if(total/Math.max(1,items.length)<55)notes.push("You were right but wide. On contracts, centre on fair value and aim for about one standard deviation of width; on calculations, anchor on a value you know exactly and tighten.");
     else notes.push("Good calibration. Try to tighten calculable questions to near-zero width.");
     endGame(host,"mm",total,"Market maker score",notes)}});
 }
@@ -116,16 +116,16 @@ function playLadder(host){
 
 function renderProgress(){
   const host=$("#tab-progress");
-  const weak=[];for(const k of SKILL_ORDER){const subs=k==="mm"?["fermi"]:Object.keys(SKILLS[k].subs);for(const s of subs){const st=subStat(k+"."+s);if(st.n>=2)weak.push({k,s,st,acc:st.c/st.n})}}
+  const weak=[];for(const k of SKILL_ORDER){const subs=Object.keys(SKILLS[k].subs);for(const s of subs){const st=subStat(k+"."+s);if(st.n>=2)weak.push({k,s,st,acc:st.c/st.n})}}
   weak.sort((a,b)=>a.acc-b.acc);
   const cells=[];const d=new Date();d.setDate(d.getDate()-34);
   for(let i=0;i<35;i++){const k=d.toLocaleDateString("en-CA");const v=S.days[k];const n=v?.n||0;cells.push(`<i class="${n>=20?"l3":n>=8?"l2":n>0?"l1":""} ${k===todayKey()?"today":""}" title="${k}: ${n} questions"></i>`);d.setDate(d.getDate()+1)}
-  host.innerHTML=`<div class="grid">${SKILL_ORDER.map(k=>{const L=levelFor(k);const subs=k==="mm"?["fermi"]:Object.keys(SKILLS[k].subs);let n=0,c=0;subs.forEach(s=>{const st=subStat(k+"."+s);n+=st.n;c+=st.c});
+  host.innerHTML=`<div class="grid">${SKILL_ORDER.map(k=>{const L=levelFor(k);const subs=Object.keys(SKILLS[k].subs);let n=0,c=0;subs.forEach(s=>{const st=subStat(k+"."+s);n+=st.n;c+=st.c});
       return`<div class="card skill"><div class="top"><h3>${esc(SKILL_NAME[k])}</h3><span class="lvl">L${L} ${LVL_NAME[L]}</span></div><div class="top"><span class="r tabular">${S.ratings[k]}</span><span class="muted tabular" style="font-size:13px">${n?Math.round(c/n*100)+"% of "+n:"not started"}</span></div><div class="bar" title="Progress to the next level"><i style="width:${clamp(levelProgress(k)*100,3,100)}%"></i></div><span class="muted small">${L<5?`${Math.round(levelProgress(k)*100)}% of the way to L${L+1}`:"Top level"}</span><span class="muted" style="font-size:12.5px">${(()=>{const e=eta(k);return e.ready?"At interview level (1250+)":`${esc(e.text)} to interview level${e.measured?"":" (estimate)"}`})()}</span></div>`}).join("")}</div>
     <div class="card" style="display:flex;flex-direction:column;gap:10px"><h3>Last 26 weeks</h3>${heatmap(S.days)}</div>
     <div class="card stack"><h3>Progress over time</h3><div id="progcharts"></div></div>
     <div class="card" style="display:flex;flex-direction:column;gap:6px"><h3>Weak spots</h3>
-      <div class="list">${weak.length?weak.slice(0,6).map(w=>`<div><span class="l">${esc(w.k==="mm"?"Estimation":SKILLS[w.k].subs[w.s].label)} <span class="muted" style="font-size:13px">· ${esc(SKILL_NAME[w.k])}</span></span><span class="pill ${w.acc<.5?"weak":w.acc<.8?"mid":"ok"} tabular">${Math.round(w.acc*100)}% · ${w.st.n}</span></div>`).join(""):`<div><span class="muted">Answer a few questions in each topic and your weakest areas show up here.</span></div>`}</div></div>
+      <div class="list">${weak.length?weak.slice(0,6).map(w=>`<div><span class="l">${esc(SKILLS[w.k].subs[w.s].label)} <span class="muted" style="font-size:13px">· ${esc(SKILL_NAME[w.k])}</span></span><span class="pill ${w.acc<.5?"weak":w.acc<.8?"mid":"ok"} tabular">${Math.round(w.acc*100)}% · ${w.st.n}</span></div>`).join(""):`<div><span class="muted">Answer a few questions in each topic and your weakest areas show up here.</span></div>`}</div></div>
     <div class="card" style="display:flex;flex-direction:column;gap:6px"><h3>Mistakes queued for review · ${S.mistakes.length}</h3>
       <div class="list">${S.mistakes.length?S.mistakes.slice(0,10).map(m=>`<div style="flex-direction:column;align-items:stretch;gap:4px"><span>${esc(m.q)}</span><span class="muted tabular" style="font-size:13px;font-family:var(--mono)">you: ${esc(m.given)} · answer: ${esc(fmt(m.ans))} · ${m.fixes}/2 fixed</span></div>`).join(""):`<div><span class="muted">No open mistakes. Anything you miss lands here and comes back in your Daily set until you get it right twice.</span></div>`}</div></div>
     <div class="card"><h3>Labs · ${LABS.filter(l=>labDone(l.id)).length} / ${LABS.length}</h3><div class="list" style="margin-top:6px">${LABS.map(l=>`<div><span>${esc(l.title)}</span><span class="pill ${labDone(l.id)?"ok":"todo"}">${labDone(l.id)?"done":"not yet"}</span></div>`).join("")}</div></div>
@@ -133,7 +133,7 @@ function renderProgress(){
 }
 
 function statsSummary(){
-  const skills=SKILL_ORDER.map(k=>{const subs=k==="mm"?["fermi"]:Object.keys(SKILLS[k].subs);return{skill:SKILL_NAME[k],rating:S.ratings[k],level:levelFor(k),subs:subs.map(s=>{const st=subStat(k+"."+s);return{name:k==="mm"?"estimation":SKILLS[k].subs[s].label,attempts:st.n,correct:st.c,avgSec:st.n?Math.round(st.ms/st.n/100)/10:null}})}});
+  const skills=SKILL_ORDER.map(k=>{const subs=Object.keys(SKILLS[k].subs);return{skill:SKILL_NAME[k],rating:S.ratings[k],level:levelFor(k),subs:subs.map(s=>{const st=subStat(k+"."+s);return{name:SKILLS[k].subs[s].label,attempts:st.n,correct:st.c,avgSec:st.n?Math.round(st.ms/st.n/100)/10:null}})}});
   const days=Object.entries(S.days).sort().slice(-14).map(([d,v])=>({d,n:v.n,c:v.c,daily:v.daily}));
   return JSON.stringify({etaToInterviewLevel:Object.fromEntries(SKILL_ORDER.map(k=>[k,eta(k).text])),allSubs:S.subs,skills,last14days:days,openMistakes:S.mistakes.slice(0,12).map(m=>({skill:m.skill,q:m.q,given:m.given,ans:m.ans})),games:Object.fromEntries(Object.entries(S.games).map(([k,v])=>[k,{best:v.best,recent:v.hist.slice(-5)}]))});
 }
@@ -167,7 +167,7 @@ function checklist(){
 function renderDaily(){
   const host=$("#v-daily");const done=S.days[todayKey()]?.daily;
   const read=PLAN&&(S.lessonsRead||[]).includes(PLAN.id);
-  const nq=PLAN&&Array.isArray(PLAN.questions)&&S.planDone!==PLAN.id?Math.min(6,PLAN.questions.length):0;
+  const nq=PLAN&&Array.isArray(PLAN.questions)&&S.planDone!==PLAN.id?Math.min(4,PLAN.questions.length):0;
   const visitor=PUBLISHED&&!Object.keys(S.days).length;
   host.innerHTML=`${visitor?visitorCard():""}${PLAN&&PLAN.lesson?`<div class="card lesson">
       <div class="row between"><h3>${PLAN.fromUnit?"Next lesson":"Today's lesson"}</h3>${read?`<span class="pill ok">read</span>`:""}</div>
